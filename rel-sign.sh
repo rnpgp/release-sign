@@ -20,6 +20,7 @@ Usage:
     -v, --version - version, in the format x.y.z, without leading v
     -k, --key - signing key id, fingerprint or email
     -gpg - use gpg instead of rnp for signing.
+    -s, --src - use specified folder for release sources comparison instead of downloading from GitHub.
     -pparams - addition OpenPGP params, like '--homedir .rnp', '--keyfile seckey.asc', etc.\n"
 }
 
@@ -48,6 +49,15 @@ while [ $# -gt 0 ]; do
       ;;
     --gpg)
       USEGPG=1
+      ;;
+    --src*|-s*)
+      if [[ "$1" != *=* ]]; then shift; fi
+      SRCDIR=`realpath "${1#*=}"`
+      if [ ! -d ${SRCDIR} ]; then
+          printf "Directory ${SRCDIR} doesn't exist.\n"
+          exit 1
+      fi
+      printf "Comparing with sources from ${SRCDIR}\n"
       ;;
     --pparams*)
       if [[ "$1" != *=* ]]; then shift; fi
@@ -84,21 +94,24 @@ set -x
 TMPDIR=$(_mktemp)
 pushd ${TMPDIR} > /dev/null
 
-git clone https://github.com/${REPO}
-pushd ${REPOLAST} > /dev/null
-git checkout v${VERSION}
-popd > /dev/null
+if [ -z ${SRCDIR+X} ]; then
+    git clone https://github.com/${REPO}
+    pushd ${REPOLAST} > /dev/null
+    git checkout v${VERSION}
+    popd > /dev/null
+    SRCDIR=${REPOLAST}
+fi
 
 # Check .tar.gz
 wget https://github.com/${REPO}/archive/refs/tags/v${VERSION}.tar.gz
 tar xf v${VERSION}.tar.gz
-diff -qr --exclude=".git" ${REPOLAST} ${REPOLAST}-${VERSION}
+diff -qr --exclude=".git" ${SRCDIR} ${REPOLAST}-${VERSION}
 rm -rf ${REPOLAST}-${VERSION}
 
 # Check .zip
 wget https://github.com/${REPO}/archive/refs/tags/v${VERSION}.zip
 unzip -qq v${VERSION}.zip
-diff -qr --exclude=".git" ${REPOLAST} ${REPOLAST}-${VERSION}
+diff -qr --exclude=".git" ${SRCDIR} ${REPOLAST}-${VERSION}
 rm -rf ${REPOLAST}-${VERSION}
 popd > /dev/null
 
