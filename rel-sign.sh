@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Copyright (c) 2021 Ribose Inc.
 # All rights reserved.
 #
@@ -23,11 +23,11 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-set -eu
+set -e
 
 # Make temporary folder
-_mktemp() {
-    local base=${1:-/tmp}
+function _mktemp() {
+    local base="/tmp"
     if [[ $(uname) = Darwin ]]; then mktemp -d $base/rel-sign.XXXXXXXXXX
     else TMPDIR="$base" mktemp -d -t rel-sign.XXXXXXXXXX
     fi
@@ -45,7 +45,8 @@ Usage:
     -k, --key - signing key id, fingerprint or email
     -gpg - use gpg instead of rnp for signing.
     -s, --src - use specified folder for release sources comparison instead of downloading from GitHub.
-    -pparams - addition OpenPGP params, like '--homedir .rnp', '--keyfile seckey.asc', etc.\n"
+    -d, --debug - dump commands which are executed.
+    --pparams - all further parameters will be passed to the OpenPGP backend, like '--homedir .rnp', '--keyfile seckey.asc', etc.\n"
 }
 
 # Extract parameters
@@ -54,45 +55,50 @@ if [ $# -eq 0 ]; then
     exit 0
 fi
 
-PPARAMS=""
+PPARAMS=()
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --repo*|-r*)
-      if [[ "$1" != *=* ]]; then shift; fi # Value is next arg if no `=`
-      REPO="${1#*=}"
-      REPOLAST=`basename ${REPO}`
+      if [[ "$1" == *=* ]]; then REPO="${1#*=}"
+      else shift; REPO="${1}"; fi
+      REPOLAST=$(basename "${REPO}")
       ;;
     --version*|-v*)
-      if [[ "$1" != *=* ]]; then shift; fi
-      VERSION="${1#*=}"
+      if [[ "$1" == *=* ]]; then VERSION="${1#*=}"
+      else shift; VERSION="${1}"; fi
       ;;
     --key*|-k*)
-      if [[ "$1" != *=* ]]; then shift; fi
-      KEY="${1#*=}"
+      if [[ "$1" == *=* ]]; then KEY="${1#*=}"
+      else shift; KEY="${1}"; fi
       ;;
     --gpg)
       USEGPG=1
       ;;
     --src*|-s*)
-      if [[ "$1" != *=* ]]; then shift; fi
-      SRCDIR=`realpath "${1#*=}"`
-      if [ ! -d ${SRCDIR} ]; then
-          printf "Directory ${SRCDIR} doesn't exist.\n"
+      if [[ "$1" == *=* ]]; then SRCDIR="${1#*=}"
+      else shift; SRCDIR="${1}"; fi
+      SRCDIR=$(realpath "${SRCDIR}")
+      if [ ! -d "${SRCDIR}" ]; then
+          printf "Directory %s doesn't exist.\n" "${SRCDIR}"
           exit 1
       fi
-      printf "Comparing with sources from ${SRCDIR}\n"
+      printf "Comparing with sources from %s\n" "${SRCDIR}"
       ;;
-    --pparams*)
-      if [[ "$1" != *=* ]]; then shift; fi
-      PPARAMS="${1#*=}"
+    --debug|-d)
+      set -x
+      ;;
+    --pparams)
+      shift
+      PPARAMS=("$@")
+      break
       ;;
     --help|-h)
       print_help
       exit 0
       ;;
     *)
-      >&2 printf "Invalid argument: $1\nUse --help or -h to get list of available arguments.\n"
+      >&2 printf "Invalid argument: %s\nUse --help or -h to get list of available arguments.\n" "$1"
       exit 1
       ;;
   esac
@@ -100,62 +106,67 @@ while [ $# -gt 0 ]; do
 done
 
 # Check whether all parameters are specified.
-if [ -z ${REPO+x} ]; then
+if [[ -z "${REPO}" ]]; then
     printf "Please specify repository via -r or --repo argument.\n"
     exit 1
 fi
-if [ -z ${VERSION+x} ]; then
+if [[ -z "${VERSION}" ]]; then
     printf "Please specify release version via -v or --version argument.\n"
     exit 1
 fi
-if [ -z ${KEY+x} ]; then
+if [[ -z "${KEY}" ]]; then
     printf "Signing key was not specified - so default one will be used.\n"
 fi
 
 # Fetch repository and release tarball/zip.
-printf "Fetching repository and releases...\n"
-set -x
 TMPDIR=$(_mktemp)
-pushd ${TMPDIR} > /dev/null
+pushd "${TMPDIR}" > /dev/null
+printf "Working directory is %s\n" "$(pwd)"
 
-if [ -z ${SRCDIR+X} ]; then
-    git clone https://github.com/${REPO}
-    pushd ${REPOLAST} > /dev/null
-    git checkout v${VERSION}
+if [[ -z "${SRCDIR}" ]]; then
+    printf "Fetching repository %s\n" "${REPO}"
+    git clone --quiet "https://github.com/${REPO}"
+    pushd "${REPOLAST}" > /dev/null
+    printf "Checking out tag %s\n" "v${VERSION}"
+    git checkout --quiet "v${VERSION}"
     popd > /dev/null
     SRCDIR=${REPOLAST}
 fi
 
 # Check .tar.gz
-wget https://github.com/${REPO}/archive/refs/tags/v${VERSION}.tar.gz
-tar xf v${VERSION}.tar.gz
-diff -qr --exclude=".git" ${SRCDIR} ${REPOLAST}-${VERSION}
-rm -rf ${REPOLAST}-${VERSION}
+URL="https://github.com/${REPO}/archive/refs/tags/v${VERSION}.tar.gz"
+printf "Downloading %s\n" "${URL}"
+wget -q "${URL}"
+tar xf "v${VERSION}.tar.gz"
+printf "Checking unpacked tarball against sources in %s\n" "$(realpath "${SRCDIR}")"
+diff -qr --exclude=".git" "${SRCDIR}" "${REPOLAST}-${VERSION}"
+rm -rf "${REPOLAST}-${VERSION}"
 
 # Check .zip
-wget https://github.com/${REPO}/archive/refs/tags/v${VERSION}.zip
-unzip -qq v${VERSION}.zip
-diff -qr --exclude=".git" ${SRCDIR} ${REPOLAST}-${VERSION}
-rm -rf ${REPOLAST}-${VERSION}
+URL="https://github.com/${REPO}/archive/refs/tags/v${VERSION}.zip"
+printf "Downloading %s\n" "${URL}"
+wget -q "${URL}"
+unzip -qq "v${VERSION}.zip"
+printf "Checking unpacked zip archive against sources in %s\n" "$(realpath "${SRCDIR}")"
+diff -qr --exclude=".git" "${SRCDIR}" "${REPOLAST}-${VERSION}"
+rm -rf "${REPOLAST}-${VERSION}"
 popd > /dev/null
 
 # Sign
-KEYCMD=""
-if [ -z ${USEGPG+x} ]; then
+printf "Signing tarball and zip\n"
+if [[ -n "${KEY}" ]]; then
+    # Same for RNP and GnuPG
+    PPARAMS=("-u" "${KEY}" "${PPARAMS[@]}")
+fi
+if [[ -z "${USEGPG}" ]]; then
     # Using the rnp - default
-    if [ ! -z ${KEY+x} ]; then
-        KEYCMD="-u ${KEY}"
-    fi
-    rnp --sign --detach --armor ${KEYCMD} ${PPARAMS} ${TMPDIR}/v${VERSION}.tar.gz --output v${VERSION}.tar.gz.asc
-    rnp --sign --detach --armor ${KEYCMD} ${PPARAMS} ${TMPDIR}/v${VERSION}.zip --output v${VERSION}.zip.asc
+    rnp --sign --detach --armor "${PPARAMS[@]}" "${TMPDIR}/v${VERSION}.tar.gz" --output "v${VERSION}.tar.gz.asc"
+    rnp --sign --detach --armor "${PPARAMS[@]}" "${TMPDIR}/v${VERSION}.zip" --output "v${VERSION}.zip.asc"
 else
     # Using the gpg
-    if [ ! -z ${KEY+x} ]; then
-        KEYCMD="-u ${KEY}"
-    fi
-    gpg --armor --detach-sign ${KEYCMD} ${PPARAMS} --output v${VERSION}.tar.gz.asc ${TMPDIR}/v${VERSION}.tar.gz
-    gpg --armor --detach-sign ${KEYCMD} ${PPARAMS} --output v${VERSION}.zip.asc ${TMPDIR}/v${VERSION}.zip
+    gpg --armor "${PPARAMS[@]}" --output "v${VERSION}.tar.gz.asc" --detach-sign "${TMPDIR}/v${VERSION}.tar.gz"
+    gpg --armor "${PPARAMS[@]}" --output "v${VERSION}.zip.asc" --detach-sign "${TMPDIR}/v${VERSION}.zip"
 fi
 
-printf "Signatures are stored in files v${VERSION}.tar.gz.asc and v${VERSION}.zip.asc. \n";
-rm -rf ${TMPDIR}
+printf "Signatures are stored in files %s and %s.\n" "v${VERSION}.tar.gz.asc" "v${VERSION}.zip.asc";
+rm -rf "${TMPDIR}"
