@@ -80,10 +80,10 @@ while [ $# -gt 0 ]; do
       else shift; SRCDIR="${1}"; fi
       SRCDIR=$(realpath "${SRCDIR}")
       if [ ! -d "${SRCDIR}" ]; then
-          printf "Directory %s doesn't exist.\n" "${SRCDIR}"
+          >&2 printf "Directory %s doesn't exist.\n" "${SRCDIR}"
           exit 1
       fi
-      printf "Comparing with sources from %s\n" "${SRCDIR}"
+      >&2 printf "Comparing with sources from %s\n" "${SRCDIR}"
       ;;
     --debug|-d)
       set -x
@@ -107,27 +107,27 @@ done
 
 # Check whether all parameters are specified.
 if [[ -z "${REPO}" ]]; then
-    printf "Please specify repository via -r or --repo argument.\n"
+    >&2 printf "Please specify repository via -r or --repo argument.\n"
     exit 1
 fi
 if [[ -z "${VERSION}" ]]; then
-    printf "Please specify release version via -v or --version argument.\n"
+    >&2 printf "Please specify release version via -v or --version argument.\n"
     exit 1
 fi
 if [[ -z "${KEY}" ]]; then
-    printf "Signing key was not specified - so default one will be used.\n"
+    >&2 printf "Signing key was not specified - so default one will be used.\n"
 fi
 
 # Fetch repository and release tarball/zip.
 TMPDIR=$(_mktemp)
 pushd "${TMPDIR}" > /dev/null
-printf "Working directory is %s\n" "$(pwd)"
+>&2 printf "Working directory is %s\n" "$(pwd)"
 
 if [[ -z "${SRCDIR}" ]]; then
-    printf "Fetching repository %s\n" "${REPO}"
+    >&2 printf "Fetching repository %s\n" "${REPO}"
     git clone --quiet "https://github.com/${REPO}"
     pushd "${REPOLAST}" > /dev/null
-    printf "Checking out tag %s\n" "v${VERSION}"
+    >&2 printf "Checking out tag %s\n" "v${VERSION}"
     git checkout --quiet "v${VERSION}"
     popd > /dev/null
     SRCDIR=${REPOLAST}
@@ -135,25 +135,25 @@ fi
 
 # Check .tar.gz
 URL="https://github.com/${REPO}/archive/refs/tags/v${VERSION}.tar.gz"
-printf "Downloading %s\n" "${URL}"
+>&2 printf "Downloading %s\n" "${URL}"
 wget -q "${URL}"
 tar xf "v${VERSION}.tar.gz"
-printf "Checking unpacked tarball against sources in %s\n" "$(realpath "${SRCDIR}")"
+>&2 printf "Checking unpacked tarball against sources in %s\n" "$(realpath "${SRCDIR}")"
 diff -qr --exclude=".git" "${SRCDIR}" "${REPOLAST}-${VERSION}"
 rm -rf "${REPOLAST}-${VERSION}"
 
 # Check .zip
 URL="https://github.com/${REPO}/archive/refs/tags/v${VERSION}.zip"
-printf "Downloading %s\n" "${URL}"
+>&2 printf "Downloading %s\n" "${URL}"
 wget -q "${URL}"
 unzip -qq "v${VERSION}.zip"
-printf "Checking unpacked zip archive against sources in %s\n" "$(realpath "${SRCDIR}")"
+>&2 printf "Checking unpacked zip archive against sources in %s\n" "$(realpath "${SRCDIR}")"
 diff -qr --exclude=".git" "${SRCDIR}" "${REPOLAST}-${VERSION}"
 rm -rf "${REPOLAST}-${VERSION}"
 popd > /dev/null
 
 # Sign
-printf "Signing tarball and zip\n"
+>&2 printf "Signing tarball and zip\n"
 if [[ -n "${KEY}" ]]; then
     # Same for RNP and GnuPG
     PPARAMS=("-u" "${KEY}" "${PPARAMS[@]}")
@@ -168,5 +168,5 @@ else
     gpg --armor "${PPARAMS[@]}" --output "v${VERSION}.zip.asc" --detach-sign "${TMPDIR}/v${VERSION}.zip"
 fi
 
-printf "Signatures are stored in files %s and %s.\n" "v${VERSION}.tar.gz.asc" "v${VERSION}.zip.asc";
+>&2 printf "Signatures are stored in files %s and %s.\n" "v${VERSION}.tar.gz.asc" "v${VERSION}.zip.asc";
 rm -rf "${TMPDIR}"
