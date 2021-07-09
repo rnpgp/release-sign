@@ -41,7 +41,7 @@ Also you'll be able to download a source tarball.
 
 You may manually download sources, check whether archive corresponds to the latest commits, and sign it, however it is more handy to use `./rel-sign.sh` script, which will do everything for you (in the example code secret key is exported to the file):
 
-`./rel-sign.sh --repo rnpgp/rnp -v 0.15.1 --pparams "--keyfile dummy-release-sec.asc"`
+`./rel-sign.sh --repo rnpgp/rnp -v 0.15.1 --pparams --keyfile dummy-release-sec.asc`
 
 On success you'll receive line `Signatures are stored in files v0.15.1.tar.gz.asc and v0.15.1.zip.asc.
 `, and corresponding signature files.
