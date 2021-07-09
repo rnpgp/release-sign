@@ -89,28 +89,27 @@ declare __PROGNAME="${0##*/}"
 
 # Print help message
 print_help() {
-	cat <<-EOF
-	Sign releases from the GitHub repository with PGP key.
-	Usage:
-	    ${__PROGNAME} -h, --help
-	    ${__PROGNAME} OPTIONS
-	Example:
-	    ${__PROGNAME} -r=user/repository -v=0.1.1 -k=7761E36F86C935A6
-	Options:
-	    -r, --repo             - repository, in the format "username/repository"
-	    -v, --version          - version, in the format "x.y.z", without leading "v"
-	    -k, --key              - signing key id, fingerprint or email
-	    -gpg                   - use gpg instead of rnp for signing
-	    -s, --src              - use specified folder for release sources
-	                             comparison instead of downloading from GitHub
-	    -d, --debug            - dump commands which are executed
-	    -V, --verbose          - output progress logs
-	    --pparams              - all further parameters will be passed to the
-	                             OpenPGP backend, like:
-	                               '--homedir .rnp'
-	                               '--keyfile seckey.asc'
-	                               etc.
-	EOF
+	printf "Sign releases from the GitHub repository with PGP key.
+Usage:
+    \e[1m${__PROGNAME}\e[m \e[4mOPTIONS...\e[m
+Example:
+    \e[1m${__PROGNAME}\e[m -r=user/repository -v=0.1.1 -k=7761E36F86C935A6
+Options:
+    -h, --help      - show this help message and abort
+    -r, --repo      - repository, in the format "username/repository"
+    -v, --version   - version, in the format "x.y.z", without leading "v"
+    -k, --key       - signing key id, fingerprint or email
+    --gpg           - use gpg instead of rnp for signing
+    -s, --src       - use specified folder for release sources
+                      comparison instead of downloading from GitHub
+    -d, --debug     - dump commands which are executed
+    -V, --verbose   - output progress logs
+    --pparams       - all further parameters will be passed to the
+                      OpenPGP backend, like:
+                        '--homedir .rnp'
+                        '--keyfile seckey.asc'
+                        etc."
+	echo
 }
 
 declare USEGPG=
