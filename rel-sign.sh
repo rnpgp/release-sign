@@ -58,6 +58,15 @@ warnp() {
 	>&2 printf "$@"
 }
 
+# Echo command (if verbose mode)
+ecdo() {
+	for segment in "$@"; do
+		infop " ${segment}"
+	done
+	info
+	"$@"
+}
+
 declare -a TEMPDIRS=()
 
 cleanup() {
@@ -288,22 +297,23 @@ check-zip() {
 	rm -rf "${REPOLAST}-${VERSION}"
 }
 
-# Sign
 sign() {
 	info "Signing tarball and zip"
 	if [[ -n "${KEY}" ]]; then
 		# Same for RNP and GnuPG
-		PPARAMS=("-u" "${KEY}" "${PPARAMS[@]}")
+		PPARAMS=("-u" "${KEY}" "${PPARAMS[@]+${PPARAMS[@]}}")
 	fi
 
 	if [[ -z "${USEGPG}" ]]; then
-		# Using the rnp - default
-		rnp --sign --detach --armor "${PPARAMS[@]}" "${TMPDIR}/v${VERSION}.tar.gz" --output "v${VERSION}.tar.gz.asc"
-		rnp --sign --detach --armor "${PPARAMS[@]}" "${TMPDIR}/v${VERSION}.zip" --output "v${VERSION}.zip.asc"
+		# Using rnp - default
+		for ext in {zip,tar.gz}; do
+			ecdo rnp --sign --detach --armor "${PPARAMS[@]+${PPARAMS[@]}}" "${TMPDIR}/v${VERSION}.${ext}" --output "v${VERSION}.${ext}.asc"
+		done
 	else
-		# Using the gpg
-		gpg --armor "${PPARAMS[@]}" --output "v${VERSION}.tar.gz.asc" --detach-sign "${TMPDIR}/v${VERSION}.tar.gz"
-		gpg --armor "${PPARAMS[@]}" --output "v${VERSION}.zip.asc" --detach-sign "${TMPDIR}/v${VERSION}.zip"
+		# Using gpg
+		for ext in {zip,tar.gz}; do
+			ecdo gpg --armor "${PPARAMS[@]+${PPARAMS[@]}}" --output "v${VERSION}.${ext}.asc" --detach-sign "${TMPDIR}/v${VERSION}.${ext}"
+		done
 	fi
 
 	infop "Signatures are stored in files %s and %s.\n" "v${VERSION}.tar.gz.asc" "v${VERSION}.zip.asc";
