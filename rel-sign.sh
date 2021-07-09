@@ -319,6 +319,21 @@ sign() {
 	infop "Signatures are stored in files %s and %s.\n" "v${VERSION}.tar.gz.asc" "v${VERSION}.zip.asc";
 }
 
+verify() {
+	if [[ -z "${USEGPG}" ]]; then
+		for ext in {zip,tar.gz}; do
+			# Work around RNP's option
+			cp "${TMPDIR}/v${VERSION}.${ext}" .
+			ecdo rnp --verify "v${VERSION}.${ext}.asc"
+			rm "v${VERSION}.${ext}"
+		done
+	else
+		for ext in {zip,tar.gz}; do
+			ecdo gpg --verify "v${VERSION}.${ext}.asc" "${TMPDIR}/v${VERSION}.${ext}"
+		done
+	fi
+}
+
 main() {
 	parse-opts "$@"
 	check-prerequisites
@@ -332,6 +347,7 @@ main() {
 	check-zip
 	popd > /dev/null
 	TMPDIR="${tmpdir}" sign
+	TMPDIR="${tmpdir}" verify
 }
 
 main "$@"
