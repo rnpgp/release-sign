@@ -234,6 +234,39 @@ fetch-repo() {
 	fi
 }
 
+declare prerequisites=(
+	diff
+	git
+	tar
+	unzip
+	wget
+)
+
+# Check if all prerequisites are met
+check-prerequisites() {
+	local unsatisfied=()
+
+	if [[ -n "${USEGPG}" ]]; then
+		prerequisites+=("gpg")
+	else
+		prerequisites+=("rnp")
+	fi
+
+	for prereq in "${prerequisites[@]}"; do
+		if ! command -v "${prereq}" > /dev/null; then
+			unsatisfied+=("${prereq}")
+		fi
+	done
+
+	if [[ "${#unsatisfied[@]}" -gt 0 ]]; then
+		warn "Error: the following prerequisites are unsatisfied.  Aborting."
+		for unsat in "${unsatisfied[@]}"; do
+			warn "  ${unsat}"
+		done
+		exit 1
+	fi
+}
+
 # Check .tar.gz
 check-targz() {
 	local url="https://github.com/${REPO}/archive/refs/tags/v${VERSION}.tar.gz"
@@ -258,7 +291,7 @@ check-zip() {
 
 # Sign
 sign() {
-	infoprintf "Signing tarball and zip\n"
+	info "Signing tarball and zip"
 	if [[ -n "${KEY}" ]]; then
 		# Same for RNP and GnuPG
 		PPARAMS=("-u" "${KEY}" "${PPARAMS[@]}")
@@ -279,6 +312,7 @@ sign() {
 
 main() {
 	parse-opts "$@"
+	check-prerequisites
 	validate-parameters
 
 	local tmpdir
