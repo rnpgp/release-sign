@@ -315,11 +315,23 @@ sign() {
 			ecdo gpg --armor "${PPARAMS[@]+${PPARAMS[@]}}" --output "v${VERSION}.${ext}.asc" --detach-sign "${TMPDIR}/v${VERSION}.${ext}"
 		done
 	fi
+	# Calculate hashes as well
+	pushd "${TMPDIR}" > /dev/null
+	info sha256sum "v${VERSION}.zip" "v${VERSION}.tar.gz" ">" "v${VERSION}.sha256"
+	sha256sum "v${VERSION}.zip" "v${VERSION}.tar.gz" > "v${VERSION}.sha256"
+	popd > /dev/null
+	mv "${TMPDIR}/v${VERSION}.sha256" .
 
 	infop "Signatures are stored in files %s and %s.\n" "v${VERSION}.tar.gz.asc" "v${VERSION}.zip.asc";
 }
 
 verify() {
+	# Validate hashes first
+	cp "v${VERSION}.sha256" "${TMPDIR}/v${VERSION}.sha256"
+	pushd "${TMPDIR}" > /dev/null
+	ecdo sha256sum --quiet -c "v${VERSION}.sha256"
+	popd > /dev/null
+	# Verify signatures
 	if [[ -z "${USEGPG}" ]]; then
 		for ext in {zip,tar.gz}; do
 			# Work around RNP's option
