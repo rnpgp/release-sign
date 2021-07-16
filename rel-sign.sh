@@ -108,6 +108,8 @@ Options:
     -r, --repo      - repository, in the format "username/repository"
     -v, --version   - version, in the format "x.y.z", without leading "v"
     -k, --key       - signing key id, fingerprint or email
+    --key-env       - name of env variable holding content of signing key
+                      (if not using -k)
     --gpg           - use gpg instead of rnp for signing
     -s, --src       - use specified folder for release sources
                       comparison instead of downloading from GitHub
@@ -128,6 +130,7 @@ declare VERSION=
 declare SRCDIR=
 declare PPARAMS=()
 declare KEY=
+declare KEY_ENV=
 declare DEBUG=
 declare VERBOSE=
 
@@ -157,12 +160,20 @@ parse-opts() {
 					VERSION="${1}"
 				fi
 				;;
-			--key*|-k*)
+			--key|-k)
 				if [[ "$1" == *=* ]]; then
 					KEY="${1#*=}"
 				else
 					shift
 					KEY="${1}"
+				fi
+				;;
+			--key-env|-key-*)
+				if [[ "$1" == *=* ]]; then
+					KEY_ENV="${1#*=}"
+				else
+					shift
+					KEY_ENV="${1}"
 				fi
 				;;
 			--gpg)
@@ -304,17 +315,33 @@ sign() {
 		PPARAMS=("-u" "${KEY}" "${PPARAMS[@]+${PPARAMS[@]}}")
 	fi
 
-	if [[ -z "${USEGPG}" ]]; then
-		# Using rnp - default
-		for ext in {zip,tar.gz}; do
-			ecdo rnp --sign --detach --armor "${PPARAMS[@]+${PPARAMS[@]}}" "${TMPDIR}/v${VERSION}.${ext}" --output "v${VERSION}.${ext}.asc"
-		done
-	else
-		# Using gpg
-		for ext in {zip,tar.gz}; do
-			ecdo gpg --armor "${PPARAMS[@]+${PPARAMS[@]}}" --output "v${VERSION}.${ext}.asc" --detach-sign "${TMPDIR}/v${VERSION}.${ext}"
-		done
+	local signing_key=
+	if [[ -n "${KEY_ENV}" ]]; then
+		# Same for RNP and GnuPG
+		signing_key="$(cat "${KEY_ENV}")"
 	fi
+
+	local -a cmd1=()
+	local -a cmd2=()
+
+	for ext in {zip,tar.gz}; do
+		if [[ -z "${USEGPG}" ]]; then
+		# Using rnp - default
+			cmd1=(rnp --sign --detach --armor)
+			cmd2=("${PPARAMS[@]+${PPARAMS[@]}}" "${TMPDIR}/v${VERSION}.${ext}" --output "v${VERSION}.${ext}.asc")
+		else
+		# Using gpg
+			cmd1=(gpg --armor)
+			cmd2=("${PPARAMS[@]+${PPARAMS[@]}}" --output "v${VERSION}.${ext}.asc" --detach-sign "${TMPDIR}/v${VERSION}.${ext}")
+		fi
+
+		if [[ -n "${KEY_ENV}" ]]; then
+			"${cmd1[@]}" --keyfile <(echo "${signing_key}") "${cmd2[@]}"
+		else
+			"${cmd1[@]}" "${cmd2[@]}"
+		fi
+	done
+
 	# Calculate hashes as well
 	pushd "${TMPDIR}" > /dev/null
 	info sha256sum "v${VERSION}.zip" "v${VERSION}.tar.gz" ">" "v${VERSION}.sha256"
@@ -331,6 +358,7 @@ verify() {
 	pushd "${TMPDIR}" > /dev/null
 	ecdo sha256sum --quiet -c "v${VERSION}.sha256"
 	popd > /dev/null
+
 	# Verify signatures
 	if [[ -z "${USEGPG}" ]]; then
 		for ext in {zip,tar.gz}; do
