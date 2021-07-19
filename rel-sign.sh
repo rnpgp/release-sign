@@ -233,7 +233,7 @@ validate-parameters() {
 		exit 1
 	fi
 
-	if [[ -z "${KEY}" ]]; then
+	if [[ -z "${KEY}" && -z "${KEY_ENV}" ]]; then
 		warnp "Signing key was not specified - so default one will be used.\n"
 	fi
 }
