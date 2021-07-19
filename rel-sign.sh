@@ -224,17 +224,22 @@ parse-opts() {
 # Check whether all parameters are specified.
 validate-parameters() {
 	if [[ -z "${REPO}" ]]; then
-		warnp "Please specify repository via -r or --repo argument.\n"
+		warn "Please specify repository via -r or --repo argument."
 		exit 1
 	fi
 
 	if [[ -z "${VERSION}" ]]; then
-		warnp "Please specify release version via -v or --version argument.\n"
+		warn "Please specify release version via -v or --version argument."
 		exit 1
 	fi
 
 	if [[ -z "${KEY}" && -z "${KEY_ENV}" ]]; then
-		warnp "Signing key was not specified - so default one will be used.\n"
+		warn "Signing key was not specified - so default one will be used."
+	fi
+
+	if [[ -n "${KEY}" && -n "${KEY_ENV}" ]]; then
+		warn "Both signing key ID and key environment variable are specified.  Only specify one.  Aborting."
+		exit 1
 	fi
 }
 
