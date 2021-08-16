@@ -99,25 +99,34 @@ declare __PROGNAME="${0##*/}"
 # Print help message
 print_help() {
 	printf "Sign releases from the GitHub repository with PGP key.
-Usage:
-    \e[1m${__PROGNAME}\e[m \e[4mOPTIONS...\e[m
-Example:
-    \e[1m${__PROGNAME}\e[m -r=user/repository -v=0.1.1 -k=7761E36F86C935A6
-Options:
+\e[1;4mUsage\e[m
+    \e[3m${__PROGNAME}\e[m \e[4mOPTIONS...\e[m \e[4m[COMMAND]\e[m
+
+\e[1;4mExamples\e[m
+    \e[3m${__PROGNAME}\e[m -r=user/repository -v=0.1.1 -k=7761E36F86C935A6
+    \e[3m${__PROGNAME}\e[m -r=user/repository -v=0.1.1 verify-remote
+
+\e[1;4mOptions\e[m
     -h, --help      - show this help message and abort
-    -r, --repo      - repository, in the format "username/repository"
-    -v, --version   - version, in the format "x.y.z", without leading "v"
+    -r, --repo      - repository, in the format \`username/repository\`
+    -v, --version   - version, in the format \`x.y.z\`, without leading \`v\`
     -k, --key       - signing key id, fingerprint or email
-    --gpg           - use gpg instead of rnp for signing
+        --gpg       - use gpg instead of rnp for signing
     -s, --src       - use specified folder for release sources
                       comparison instead of downloading from GitHub
     -d, --debug     - dump commands which are executed
     -V, --verbose   - output progress logs
-    --pparams       - all further parameters will be passed to the
+        --pparams   - all further parameters will be passed to the
                       OpenPGP backend, like:
                         '--homedir .rnp'
                         '--keyfile seckey.asc'
-                        etc."
+                        etc.
+
+\e[1;4mCommands\e[m
+    verify-remote   - given \`--repo\` and \`--version\`, verify its
+                      signatures + checksum hosted on the remote
+                      GitHub release page
+"
 	echo
 }
 
@@ -130,6 +139,7 @@ declare PPARAMS=()
 declare KEY=
 declare DEBUG=
 declare VERBOSE=
+declare COMMAND=
 
 # Extract parameters
 parse-opts() {
@@ -201,6 +211,9 @@ parse-opts() {
 				print_help
 				exit 0
 				;;
+			verify-remote)
+				COMMAND=verify-remote
+				;;
 			*)
 				warnp "Invalid argument: %s\nUse --help or -h to get list of available arguments.\n" "$1"
 				exit 1
@@ -212,24 +225,31 @@ parse-opts() {
 
 # Check whether all parameters are specified.
 validate-parameters() {
+	local need_exit=
 	if [[ -z "${REPO}" ]]; then
 		warnp "Please specify repository via -r or --repo argument.\n"
-		exit 1
+		need_exit=1
 	fi
 
 	if [[ -z "${VERSION}" ]]; then
 		warnp "Please specify release version via -v or --version argument.\n"
-		exit 1
+		need_exit=1
 	fi
 
-	if [[ -z "${KEY}" ]]; then
+	if [[ -z "${KEY}" ]] && [[ "$COMMAND" != verify* ]]; then
 		warnp "Signing key was not specified - so default one will be used.\n"
+	fi
+
+	if [[ -n "$need_exit" ]]; then
+		exit 1
 	fi
 }
 
 # Fetch repository and release tarball/zip.
 fetch-repo() {
 	infop "Working directory is %s\n" "$(pwd)"
+
+	pushd "${TMPDIR}" > /dev/null
 
 	if [[ -z "${SRCDIR}" ]]; then
 		infop "Fetching repository %s\n" "${REPO}"
@@ -240,6 +260,8 @@ fetch-repo() {
 		popd > /dev/null
 		SRCDIR=${REPOLAST}
 	fi
+
+	popd > /dev/null
 }
 
 declare prerequisites=(
@@ -275,26 +297,39 @@ check-prerequisites() {
 	fi
 }
 
-# Check .tar.gz
-check-targz() {
+download-targz() {
 	local url="https://github.com/${REPO}/archive/refs/tags/v${VERSION}.tar.gz"
 	infop "Downloading %s\n" "${url}"
 	wget -q "${url}"
+}
+
+download-zip() {
+	local url="https://github.com/${REPO}/archive/refs/tags/v${VERSION}.zip"
+	infop "Downloading %s\n" "${url}"
+	wget -q "${url}"
+}
+
+
+# Check .tar.gz
+check-targz() {
+	pushd "${TMPDIR}" > /dev/null
+	download-targz
 	tar xf "v${VERSION}.tar.gz"
 	infop "Checking unpacked tarball against sources in %s\n" "$(realpath "${SRCDIR}")"
 	diff -qr --exclude=".git" "${SRCDIR}" "${REPOLAST}-${VERSION}"
 	rm -rf "${REPOLAST}-${VERSION}"
+	popd > /dev/null
 }
 
 # Check .zip
 check-zip() {
-	local url="https://github.com/${REPO}/archive/refs/tags/v${VERSION}.zip"
-	infop "Downloading %s\n" "${url}"
-	wget -q "${url}"
+	pushd "${TMPDIR}" > /dev/null
+	download-zip
 	unzip -qq "v${VERSION}.zip"
 	infop "Checking unpacked zip archive against sources in %s\n" "$(realpath "${SRCDIR}")"
 	diff -qr --exclude=".git" "${SRCDIR}" "${REPOLAST}-${VERSION}"
 	rm -rf "${REPOLAST}-${VERSION}"
+	popd > /dev/null
 }
 
 sign() {
@@ -315,6 +350,7 @@ sign() {
 			ecdo gpg --armor "${PPARAMS[@]+${PPARAMS[@]}}" --output "v${VERSION}.${ext}.asc" --detach-sign "${TMPDIR}/v${VERSION}.${ext}"
 		done
 	fi
+
 	# Calculate hashes as well
 	pushd "${TMPDIR}" > /dev/null
 	info sha256sum "v${VERSION}.zip" "v${VERSION}.tar.gz" ">" "v${VERSION}.sha256"
@@ -323,6 +359,21 @@ sign() {
 	mv "${TMPDIR}/v${VERSION}.sha256" .
 
 	infop "Signatures are stored in files %s and %s.\n" "v${VERSION}.tar.gz.asc" "v${VERSION}.zip.asc";
+}
+
+verify-remote() {
+	for ext in {zip,tar.gz}; do
+		wget -q "https://github.com/${REPO}/releases/download/v${VERSION}/v${VERSION}.${ext}.asc"
+	done
+
+	wget -q "https://github.com/${REPO}/releases/download/v${VERSION}/v${VERSION}.sha256"
+
+	pushd "${TMPDIR}" > /dev/null
+	download-targz
+	download-zip
+	popd > /dev/null
+
+	verify
 }
 
 verify() {
@@ -353,13 +404,17 @@ main() {
 
 	local tmpdir
 	tmpdir=$(_mktemp)
-	pushd "${tmpdir}" > /dev/null
-	fetch-repo
-	check-targz
-	check-zip
-	popd > /dev/null
-	TMPDIR="${tmpdir}" sign
-	TMPDIR="${tmpdir}" verify
+	export TMPDIR="${tmpdir}"
+
+	if [[ -n "$COMMAND" ]]; then
+		"$COMMAND"
+	else
+		fetch-repo
+		check-targz
+		check-zip
+		sign
+		verify
+	fi
 }
 
 main "$@"
