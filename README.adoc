@@ -124,6 +124,9 @@ NOTE: https://keys.openpgp.org/ is such a public keyserver.
 2. If the package provides release notes, do mention the signing key's "key
 fingerprint" so that users can find your key on public keyservers or at least
 be able to identify your key for signature verification.
++
+NOTE: For example, RNP publishes its release signing key's
+https://www.rnpgp.org/openpgp_keys/[public key] online.
 
 
 == Signing
