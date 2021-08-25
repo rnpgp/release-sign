@@ -1,16 +1,35 @@
-= release-sign
+= release-sign: tools for signing and verifying GitHub releases
 
-Tools and instructions for Github releases signing using the OpenPGP key(s).
+== Purpose
+
+Tools and instructions for signing GitHub releases using OpenPGP keys.
 
 == Key generation
 
-First you'll need to generate strong enough OpenPGP key with email which corresponds to your repository/company name.
-Following commands may be used, utilizing the RNP OpenPGP suite: + `rnpkeys --generate --expert --userid "Dummy Release Signing <dummy@example.com>"` Then you'll need to choose algorithm and curve for ECC or key size for the RSA/DSA keypairs.
-EdDSA/X25519 or RSA 3072 and up would be good enough.
-Also you may want to add `--homedir somedir` parameter so keys will be stored in a folder other then your global `+${HOME}/.rnp+` keystorage.
+You will first need to generate a strong enough OpenPGP key with an email that
+corresponds to your repository/company name.
 
-Once generation is finished, you'll get something like the following:
+With RNP you can use the following commands.
 
+[source,sh]
+----
+$ rnpkeys --generate --expert --userid "Dummy Release Signing <dummy@example.com>"
+----
+
+Then choose an algorithm and the corresponding parameters:
+
+* for ECC, choose a curve
+* for RSA/DSA keypairs, specify a key size
+
+NOTE: EdDSA/X25519 or RSA 3072 and up are considered safe today.
+
+You may also want to add the `--homedir somedir` option, so that the generated
+keys will be saved in a folder outside your global key storage
+(`~/${HOME}/.rnp`, that is).
+
+Once the keys are generated, you will be presented with such an output:
+
+[source,sh]
 ----
 sec   3072/RSA (Encrypt or Sign) 2ba318771716f1c2 2021-07-01 [SC]
       91bd5489242b44def6cb633b2ba318771716f1c2
@@ -19,45 +38,139 @@ ssb   3072/RSA (Encrypt or Sign) bee55641c8403ae5 2021-07-01 [E]
       070139d64b594240141e6c18bee55641c8403ae5
 ----
 
-You may get the same output again issuing the `--list-keys` command: `rnpkeys --homedir .rnp --list-keys` Note text `sec` and `ssb` - this means that you have a secret key.
-Hex digit blocks `2ba318771716f1c2` and `91bd5489242b44def6cb633b2ba318771716f1c2` are your keyid and key fingerprint - unique identifiers, which identify your key.
-Keyid is just rightmost 16 hex chars of the fingerprint.
+[NOTE]
+--
+This output will be shown again by using the `--list-keys` command:
 
-Same can be done with GnuPG: `gpg --full-generate-key --expert`, `--homedir` parameter apply here as well.
+[source]
+----
+rnpkeys --homedir .rnp --list-keys
+----
+--
+
+Some explanation for key generation output:
+
+* The text `sec` and `ssb` means that you have a secret key.
+
+* The hex digit blocks, `2ba318771716f1c2` and
+`91bd5489242b44def6cb633b2ba318771716f1c2` are your "keyid" and
+"key fingerprint". They are unique identifiers that identify your key.
+
+* The "keyid" is actually the rightmost 16 hex chars of the "key fingerprint".
+
+[NOTE]
+--
+The same process can also be done with GnuPG:
+
+[source]
+----
+gpg --full-generate-key --expert
+----
+
+The `--homedir` option applies to the `gpg` command, as well.
+--
 
 == Key publication
 
-Once secret key is generated, you need to make public aware of your key, so people may use it to verify signatures.
-First you should export public key part: `rnpkeys --homedir .rnp --export 2ba318771716f1c2 > release-key.asc`
+Once your secret key is generated, you should announce your key to the public in
+order to allow others to verify your signatures.
 
-Or via the GnuPG: `gpg --homedir .gpg --armor --export 2ba318771716f1c2 > release-key.asc`
+1. Export the "public key" of your key into a separate file.
++
+[source,sh]
+----
+$ rnpkeys --homedir .rnp --export 2ba318771716f1c2 > release-key.asc
+----
++
+[NOTE]
+--
+If you use GnuPG, the following command.
 
-Then it may be added to your distribution and/or uploaded to the keyserver like https://keys.openpgp.org/ Also key server and key's fingerprint should be mentioned in the release notes, so user may access key to verify signatures.
+[source,sh]
+----
+gpg --homedir .gpg --armor --export 2ba318771716f1c2 > release-key.asc
+----
+--
+
+2. Supply your public key (the exported file) to your package, distribution,
+  or upload it to a public keyserver.
++
+NOTE: https://keys.openpgp.org/ is such a public keyserver.
+
+3. If the package provides release notes, do mention the signing key's "key
+  fingerprint" so that users can find your key on public keyservers or at least
+  be able to identify your key for signature verification.
 
 == Signing
 
-Once new version is released, and tag is pushed to the GitHub, you'll be able to edit release's page on the GitHub, adding release notes and uploading artifacts.
-Also you'll be able to download a source tarball.
+After releasing a new version of your software and pushing its release tag to
+GitHub, you can do the following.
 
-You may manually download sources, check whether archive corresponds to the latest commits, and sign it, however it is more handy to use `./rel-sign.sh` script, which will do everything for you (in the example code secret key is exported to the file):
+1. Download the released source tarball
+2. Sign the released source tarball
 
-`./rel-sign.sh --repo rnpgp/rnp -v 0.15.1 --pparams --keyfile dummy-release-sec.asc`
+We recommend using the provided `rel-sign.sh` script to automatically run this
+process on a GitHub repository instead of doing this manually.
 
-On success you'll receive line `Signatures are stored in files v0.15.1.tar.gz.asc and v0.15.1.zip.asc.
-`, and corresponding signature files.
-Next you'll need to upload those signatures to the GitHub release artifacts section.
-
-== Verification
-
-To verify signature, having downloaded source tarball, you may use the following commands:
-
+The syntax is:
+[source,sh]
 ----
-wget https://github.com/rnpgp/rnp/archive/refs/tags/v0.15.1.tar.gz
-wget https://github.com/rnpgp/rnp/archive/refs/tags/v0.15.1.tar.gz.asc
-rnp --keyfile dummy-release-pub.asc -v v0.15.1.tar.gz.asc
+rel-sign.sh --repo {GITHUB_REPO} -v {VERSION_TAG} --pparams --keyfile {PRIVATE_KEY_PATH}
 ----
 
-Output should be as following on success:
+EXAMPLE:
+[source,sh]
+----
+$ ./rel-sign.sh --repo rnpgp/rnp -v 0.15.1 --pparams --keyfile dummy-release-sec.asc
+Signatures are stored in files v0.15.1.tar.gz.asc and v0.15.1.zip.asc.
+----
+
+On success of the command, the following signature files will be generated:
+
+* `{VERSION_TAG}.tar.gz.asc`: signature for the `{VERSION_TAG}.tar.gz` source
+  tarball
+
+* `{VERSION_TAG}.zip.asc`: signature for the `{VERSION_TAG}.zip` source archive
+
+The last step is to upload these signature files to the GitHub Release page.
+
+* Edit the corresponding Release page on GitHub
+* Add release notes and upload signature files
+
+
+== Verifying
+
+To verify the signature of a source archive:
+
+1. Download the source archive.
+2. Download the signature file of the source archive.
+3. Download the public key used to sign the source archive.
+4. Run signature verification.
+
+NOTE: Ensure the signature file is named as `{ARCHIVE_PATH}.asc` if the archive
+is called `{ARCHIVE_PATH}`, and that they are located in the same folder.
+
+The syntax is:
+
+[source,sh]
+----
+$ rnp --keyfile {PUBLIC_KEY_PATH} -v {ARCHIVE_SIGNATURE_PATH}
+----
+
+EXAMPLE:
+
+[source,sh]
+----
+$ curl -sSL -o v0.15.1.tar.gz \
+    https://github.com/rnpgp/rnp/archive/refs/tags/v0.15.1.tar.gz
+$ curl -sSL -o v0.15.1.tar.gz.asc \
+    https://github.com/rnpgp/rnp/archive/refs/tags/v0.15.1.tar.gz.asc
+$ curl -sSL -o public-key.asc \
+    https://www.rnpgp.org/openpgp_keys/BEDBA05C1E6EE2DFB4BA72E1EC5D520AD90A7262-A845A5BD622556E89D7763B5EB06D1696BEC4C90.asc
+$ rnp --keyfile public-key.asc -v v0.15.1.tar.gz.asc
+----
+
+A successful verification will produce an output as the following.
 
 ----
 Good signature made Thu Jul  1 16:03:15 2021
@@ -69,4 +182,9 @@ uid           Dummy Release Signing <dummy@example.com>
 Signature(s) verified successfully
 ----
 
-In case of verification error some BAD Signature message would be printed.
+A failed verification will show a "BAD Signature" message...
+
+
+== License
+
+Openly licensed. Ribose.
