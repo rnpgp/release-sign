@@ -141,6 +141,8 @@ declare DEBUG=
 declare VERBOSE=
 declare COMMAND=
 
+OPTIND=1
+
 # Extract parameters
 parse-opts() {
 	if [[ $# -eq 0 ]]; then
@@ -155,6 +157,7 @@ parse-opts() {
 					REPO="${1#*=}"
 				else
 					shift
+					((OPTIND++))
 					REPO="${1}"
 				fi
 				REPOLAST=$(basename "${REPO}")
@@ -164,6 +167,7 @@ parse-opts() {
 					VERSION="${1#*=}"
 				else
 					shift
+					((OPTIND++))
 					VERSION="${1}"
 				fi
 				;;
@@ -172,6 +176,7 @@ parse-opts() {
 					KEY="${1#*=}"
 				else
 					shift
+					((OPTIND++))
 					KEY="${1}"
 				fi
 				;;
@@ -183,6 +188,7 @@ parse-opts() {
 					SRCDIR="${1#*=}"
 				else
 					shift
+					((OPTIND++))
 					SRCDIR="${1}"
 				fi
 
@@ -204,6 +210,7 @@ parse-opts() {
 				;;
 			--pparams)
 				shift
+				((OPTIND++))
 				PPARAMS=("$@")
 				break
 				;;
@@ -220,6 +227,7 @@ parse-opts() {
 				;;
 		esac
 		shift
+		((OPTIND++))
 	done
 }
 
@@ -401,6 +409,7 @@ main() {
 	parse-opts "$@"
 	check-prerequisites
 	validate-parameters
+	shift $((OPTIND - 1))
 
 	local tmpdir
 	tmpdir=$(_mktemp)
