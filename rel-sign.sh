@@ -276,6 +276,7 @@ declare prerequisites=(
 	curl
 	diff
 	git
+	jq
 	tar
 	unzip
 )
@@ -386,14 +387,18 @@ sign() {
 	infop "Signatures are stored in files %s and %s.\n" "v${VERSION}.tar.gz.asc" "v${VERSION}.zip.asc";
 }
 
+# GitHub Rest API is used so as to allow retrieving draft release files (in the
+# future).
 verify-remote() {
-	local asc_url sha_url
+	local releases_json assets_json asc_url sha_url
+	releases_json=$(curl -s "https://api.github.com/repos/${REPO}/releases")
+	assets_json=$(<<<"$releases_json" jq '.[] | select(.tag_name == "'"v${VERSION}"'") | .assets[] | { name: .name, url: .browser_download_url }')
 	for ext in {zip,tar.gz}; do
-		asc_url="https://github.com/${REPO}/releases/download/v${VERSION}/v${VERSION}.${ext}.asc"
+		asc_url=$(<<<"$assets_json" jq -r 'select(.name == "'"v${VERSION}.${ext}.asc"'").url')
 		download-file "$asc_url"
 	done
 
-	sha_url="https://github.com/${REPO}/releases/download/v${VERSION}/v${VERSION}.sha256"
+	sha_url=$(<<<"$assets_json" jq -r 'select(.name == "'"v${VERSION}.sha256"'").url')
 	download-file "$sha_url"
 
 	pushd "${TMPDIR}" > /dev/null
