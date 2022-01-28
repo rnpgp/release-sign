@@ -273,11 +273,11 @@ fetch-repo() {
 }
 
 declare prerequisites=(
+	curl
 	diff
 	git
 	tar
 	unzip
-	wget
 )
 
 # Check if all prerequisites are met
@@ -305,16 +305,33 @@ check-prerequisites() {
 	fi
 }
 
+download-file() {
+	local url="${1:?Missing URL}"
+	local outfile="${2:-"${url##*/}"}"
+	infop "Downloading %s to %s\n" "${url}" "${outfile}"
+	curl -sSL "${url}" -o "${outfile}"
+}
+
 download-targz() {
 	local url="https://github.com/${REPO}/archive/refs/tags/v${VERSION}.tar.gz"
-	infop "Downloading %s\n" "${url}"
-	wget -q "${url}"
+	# TODO: Support downloading draft release archives.
+	# NOTE: The following 'api' url gives archive with a differently-named
+	# top level directory (e.g., rnpgp-rnp-87fdd0a), thus cannot be used in
+	# our signature and sum tests.
+	# local url="https://api.github.com/repos/${REPO}/tarball/refs/tags/v${VERSION}"
+	local outfile="v${VERSION}.tar.gz"
+	download-file "${url}" "${outfile}"
 }
 
 download-zip() {
 	local url="https://github.com/${REPO}/archive/refs/tags/v${VERSION}.zip"
-	infop "Downloading %s\n" "${url}"
-	wget -q "${url}"
+	# TODO: Support downloading draft release archives.
+	# NOTE: The following 'api' url gives archive with a differently-named
+	# top level directory (e.g., rnpgp-rnp-87fdd0a), thus cannot be used in
+	# our signature and sum tests.
+	# local url="https://api.github.com/repos/${REPO}/zipball/refs/tags/v${VERSION}"
+	local outfile="v${VERSION}.zip"
+	download-file "${url}" "${outfile}"
 }
 
 
@@ -370,11 +387,14 @@ sign() {
 }
 
 verify-remote() {
+	local asc_url sha_url
 	for ext in {zip,tar.gz}; do
-		wget -q "https://github.com/${REPO}/releases/download/v${VERSION}/v${VERSION}.${ext}.asc"
+		asc_url="https://github.com/${REPO}/releases/download/v${VERSION}/v${VERSION}.${ext}.asc"
+		download-file "$asc_url"
 	done
 
-	wget -q "https://github.com/${REPO}/releases/download/v${VERSION}/v${VERSION}.sha256"
+	sha_url="https://github.com/${REPO}/releases/download/v${VERSION}/v${VERSION}.sha256"
+	download-file "$sha_url"
 
 	pushd "${TMPDIR}" > /dev/null
 	download-targz
