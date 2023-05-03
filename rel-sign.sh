@@ -401,7 +401,7 @@ download-zip() {
 # Check .tar.gz
 check-targz() {
 	pushd "${TEMPDIR}" > /dev/null
-	if [[ -z "${LOCAL_TARGZ}" ]]; then
+	if [[ -z "${LOCAL_TARGZ:-}" ]]; then
 		download-targz
 	fi
 	tar xf "${TARGZ}"
@@ -415,7 +415,7 @@ check-targz() {
 # Check .zip
 check-zip() {
 	pushd "${TEMPDIR}" > /dev/null
-	if [[ -z "${LOCAL_ZIP}" ]]; then
+	if [[ -z "${LOCAL_ZIP:-}" ]]; then
 		download-zip
 	fi
 	unzip -qq "${ZIP}"
