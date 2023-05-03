@@ -358,7 +358,7 @@ download-file() {
 	local url="${1:?Missing URL}"
 	local outfile="${2:-"${url##*/}"}"
 	infop "📥 Downloading \e[1m%s\e[22m to \e[1m%s\e[22m\n" "${url}" "${outfile}"
-	curl -sSL "${url}" -o "${outfile}"
+	curl --fail -sSL "${url}" -o "${outfile}"
 }
 
 download-targz() {
