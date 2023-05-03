@@ -25,6 +25,9 @@
 
 set -eu
 
+declare __PROGNAME="${0##*/}"
+declare __VERSION="0.1.0"
+
 info() {
 	if [[ -n "${VERBOSE}" || -n "${DEBUG}" ]]; then
 		echo "$*"
@@ -93,8 +96,6 @@ _mktemp() {
 	echo "${tmpdir}"
 }
 
-declare __PROGNAME="${0##*/}"
-
 # Print help message
 print_help() {
 	printf "Sign releases from the GitHub repository with PGP key.
@@ -124,6 +125,7 @@ print_help() {
                         etc.
 
 \e[1;4mCommands\e[m
+    version         - display current version of ${__PROGNAME}
     verify-remote   - given \`--repo\` and \`--version\`, verify its
                       signatures + checksum hosted on the remote
                       GitHub release page
@@ -257,6 +259,10 @@ parse-opts() {
 				;;
 			verify-remote)
 				COMMAND=verify-remote
+				;;
+			vers*)
+				echo "${__PROGNAME}  v${__VERSION}"
+				exit 0
 				;;
 			*)
 				warnp "Invalid argument: %s\nUse --help or -h to get list of available arguments.\n" "$1"
