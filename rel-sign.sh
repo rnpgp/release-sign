@@ -26,7 +26,7 @@
 set -eu
 
 declare __PROGNAME="${0##*/}"
-declare __VERSION="0.1.0"
+declare __VERSION="0.1.1"
 
 info() {
 	if [[ -n "${VERBOSE}" || -n "${DEBUG}" ]]; then
