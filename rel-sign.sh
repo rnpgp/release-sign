@@ -68,8 +68,11 @@ ecdo() {
 }
 
 cleanup() {
-	debugp "Removing tmpdir '${TMPDIR}'"
-	>&2 echo dry run: rm -rf "${TMPDIR}"
+	if [[ -n "${TEMPDIR:-}" && -d "${TEMPDIR}" ]]
+	then
+		debugp "Removing tmpdir '${TEMPDIR}'"
+		rm -rf "${TEMPDIR}"
+	fi
 }
 
 trap cleanup EXIT
@@ -83,7 +86,7 @@ _mktemp() {
 		if [[ $(uname) = Darwin ]]; then
 			mktemp -d "${base}/${tmpdir_format}"
 		else
-			TMPDIR="$base" mktemp -d -t "${tmpdir_format}"
+			TEMPDIR="$base" mktemp -d -t "${tmpdir_format}"
 		fi
 	)
 	# TEMPDIRS+=("${tmpdir}")
@@ -291,7 +294,7 @@ validate-parameters() {
 fetch-repo() {
 	infop "Working directory is %s\n" "$(pwd)"
 
-	pushd "${TMPDIR}" > /dev/null
+	pushd "${TEMPDIR}" > /dev/null
 
 	if [[ -z "${SRCDIR}" ]]; then
 		infop "Fetching repository %s\n" "${REPO}"
@@ -391,7 +394,7 @@ download-zip() {
 
 # Check .tar.gz
 check-targz() {
-	pushd "${TMPDIR}" > /dev/null
+	pushd "${TEMPDIR}" > /dev/null
 	if [[ -z "${LOCAL_TARGZ}" ]]; then
 		download-targz
 	fi
@@ -405,7 +408,7 @@ check-targz() {
 
 # Check .zip
 check-zip() {
-	pushd "${TMPDIR}" > /dev/null
+	pushd "${TEMPDIR}" > /dev/null
 	if [[ -z "${LOCAL_ZIP}" ]]; then
 		download-zip
 	fi
@@ -456,7 +459,7 @@ verify-remote() {
 	sha_url="https://github.com/${REPO}/releases/download/v${VERSION}/${REMOTE_SHA_SUM_FILE}"
 	download-file "$sha_url"
 
-	pushd "${TMPDIR}" > /dev/null
+	pushd "${TEMPDIR}" > /dev/null
 	download-targz
 	download-zip
 	popd > /dev/null
@@ -468,12 +471,12 @@ verify() {
 	# Validate hashes first
 	for file in "${SHA_SUM_FILE}" "${TARGZ}" "${ZIP}"
 	do
-		if [[ ! -r "${TMPDIR}/${file##*/}" ]]
+		if [[ ! -r "${TEMPDIR}/${file##*/}" ]]
 		then
-			cp "${file}" "${TMPDIR}/"
+			cp "${file}" "${TEMPDIR}/"
 		fi
 	done
-	pushd "${TMPDIR}" > /dev/null
+	pushd "${TEMPDIR}" > /dev/null
 	ecdo sha256sum ${QUIET:+--quiet} -c "${SHA_SUM_FILE}"
 	popd > /dev/null
 	# Verify signatures
@@ -502,7 +505,7 @@ main() {
 
 	local tmpdir
 	tmpdir=$(_mktemp)
-	export TMPDIR="${tmpdir}"
+	export TEMPDIR="${tmpdir}"
 
 	export NO_EXT_FILENAME="${NO_EXT_FILENAME:-v${VERSION}}"
 	export REMOTE_NO_EXT_FILENAME="${REMOTE_NO_EXT_FILENAME:-${NO_EXT_FILENAME}}"
