@@ -67,13 +67,9 @@ ecdo() {
 	"$@"
 }
 
-declare -a TEMPDIRS=()
-
 cleanup() {
-	for tmpdir in "${TEMPDIRS[@]-}"; do
-		debugp "Removing tmpdir '${tmpdir}'"
-		rm -rf "${tmpdir}"
-	done
+	debugp "Removing tmpdir '${TMPDIR}'"
+	>&2 echo dry run: rm -rf "${TMPDIR}"
 }
 
 trap cleanup EXIT
@@ -90,7 +86,7 @@ _mktemp() {
 			TMPDIR="$base" mktemp -d -t "${tmpdir_format}"
 		fi
 	)
-	TEMPDIRS+=("${tmpdir}")
+	# TEMPDIRS+=("${tmpdir}")
 	echo "${tmpdir}"
 }
 
@@ -140,6 +136,7 @@ declare SRCDIR=
 declare PPARAMS=()
 declare KEY=
 declare DEBUG=
+declare QUIET=1
 declare VERBOSE=
 declare COMMAND=
 
@@ -244,6 +241,7 @@ parse-opts() {
 			--debug|-d)
 				set -x
 				DEBUG=1
+				QUIET=
 				;;
 			--verbose|-V)
 				VERBOSE=1
@@ -306,11 +304,11 @@ fetch-repo() {
 			--depth 1 \
 			--recurse-submodules \
 			--shallow-submodules \
-			--quiet \
+			${QUIET:+--quiet} \
 			"https://github.com/${REPO}"
 		pushd "${REPOLAST}" > /dev/null
 		infop "Checking out tag %s\n" "v${VERSION}"
-		git checkout --quiet "v${VERSION}"
+		git checkout ${QUIET:+--quiet} "v${VERSION}"
 		popd > /dev/null
 		SRCDIR=${REPOLAST}
 	fi
@@ -476,7 +474,7 @@ verify() {
 		fi
 	done
 	pushd "${TMPDIR}" > /dev/null
-	ecdo sha256sum --quiet -c "${SHA_SUM_FILE}"
+	ecdo sha256sum ${QUIET:+--quiet} -c "${SHA_SUM_FILE}"
 	popd > /dev/null
 	# Verify signatures
 	if [[ -z "${USEGPG}" ]]; then
