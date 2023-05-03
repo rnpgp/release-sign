@@ -198,8 +198,6 @@ parse-opts() {
 					exit 1
 				fi
 				export LOCAL_ZIP=1
-
-				warnp "Using zip file from %s\n" "${ZIP}"
 				;;
 			--targz|-t*)
 				if [[ "$1" == *=* ]]; then
@@ -217,8 +215,6 @@ parse-opts() {
 					exit 1
 				fi
 				export LOCAL_TARGZ=1
-
-				warnp "Using tar.gz file from %s\n" "${TARGZ}"
 				;;
 			--src*|-s*)
 				if [[ "$1" == *=* ]]; then
@@ -531,6 +527,8 @@ main() {
 	if [[ -n "$COMMAND" ]]; then
 		"$COMMAND"
 	else
+		warnp "Using zip file from %s\n" "${ZIP}"
+		warnp "Using tar.gz file from %s\n" "${TARGZ}"
 		fetch-repo
 		check-targz
 		check-zip
