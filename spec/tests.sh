@@ -13,7 +13,11 @@ all_tags=()
 while read -r tag
 do
 	all_tags+=("$tag")
-done < <(git ls-remote --tags https://github.com/rnpgp/rnp | sed '/tags/!d; /{}$/d; s@^.*refs/tags/v@@')
+done < <(
+	git ls-remote --tags https://github.com/rnpgp/rnp | \
+	sed '/tags/!d; /{}$/d; s@^.*refs/tags/v@@' | \
+	sort --version-sort -r # Process latest tags first
+)
 
 expected-archive-name-for-version() {
 	local version="${1:?Missing version}"
