@@ -352,7 +352,7 @@ check-prerequisites() {
 download-file() {
 	local url="${1:?Missing URL}"
 	local outfile="${2:-"${url##*/}"}"
-	infop "Downloading %s to %s\n" "${url}" "${outfile}"
+	infop "📥 Downloading \e[1m%s\e[22m to \e[1m%s\e[22m\n" "${url}" "${outfile}"
 	curl -sSL "${url}" -o "${outfile}"
 }
 
@@ -403,6 +403,7 @@ check-targz() {
 	infop "Checking unpacked tarball against sources in %s\n" "$(realpath "${SRCDIR}")"
 	diff -qr --exclude=".git" "${SRCDIR}" "${TARGZ_NO_EXT}"
 	rm -rf "${TARGZ_NO_EXT}"
+	info "✅ tarball intact"
 	popd > /dev/null
 }
 
@@ -416,11 +417,12 @@ check-zip() {
 	infop "Checking unpacked zip archive against sources in %s\n" "$(realpath "${SRCDIR}")"
 	diff -qr --exclude=".git" "${SRCDIR}" "${ZIP_NO_EXT}"
 	rm -rf "${ZIP_NO_EXT}"
+	info "✅ zip archive intact"
 	popd > /dev/null
 }
 
 sign() {
-	info "Signing tarball and zip"
+	info "✍️ Signing tarball and zip"
 	if [[ -n "${KEY}" ]]; then
 		# Same for RNP and GnuPG
 		PPARAMS=("-u" "${KEY}" "${PPARAMS[@]+${PPARAMS[@]}}")
@@ -429,11 +431,13 @@ sign() {
 	if [[ -z "${USEGPG}" ]]; then
 		# Using rnp - default
 		for file in "${TARGZ}" "${ZIP}"; do
+			info "✍️ Signing ${file} with RNP"
 			ecdo rnp --sign --detach --armor "${PPARAMS[@]+${PPARAMS[@]}}" "${file}" --output "${file##*/}.asc"
 		done
 	else
 		# Using gpg
 		for file in "${TARGZ}" "${ZIP}"; do
+			info "✍️ Signing ${file} with GPG"
 			ecdo gpg --armor "${PPARAMS[@]+${PPARAMS[@]}}" --output "${file##*/}.asc" --detach-sign "${file}"
 		done
 	fi
@@ -443,7 +447,7 @@ sign() {
 	infop "🧮 Checksumming %s and %s" "${ZIP_BASEPATH}" "${TARGZ_BASEPATH}"
 	sha256sum "${ZIP_BASEPATH}" "${TARGZ_BASEPATH}" > "${SHA_SUM_FILE}"
 
-	infop "Signatures are stored in files %s and %s.\n" "${TARGZ}.asc" "${ZIP}.asc";
+	infop "✅ Checksums are stored in files %s and %s.\n" "${TARGZ}.asc" "${ZIP}.asc";
 }
 
 verify-remote() {
@@ -491,6 +495,7 @@ verify() {
 			ecdo gpg --verify "${file##*/}.asc" "${file}"
 		done
 	fi
+	info "✅ Signatures are verified"
 }
 
 main() {
