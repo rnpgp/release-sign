@@ -4,6 +4,22 @@
 
 Tools and instructions for signing GitHub releases using OpenPGP keys.
 
+== Installation
+
+=== Nix Flakes
+
+If you have Nix Flakes installed, you can use the following command directly:
+
+[source,sh]
+----
+$ nix run github:rnpgp/release-sign -- # options and parameters...
+----
+
+=== Non-Nix Flakes
+
+You will need to git clone this repository to your local machine, then CD into
+it.
+
 == Key generation
 
 You will first need to generate a strong enough OpenPGP key with an email that
