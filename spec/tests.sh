@@ -3,7 +3,8 @@
 
 # The default fingerprint for tags that are not tested explicitly in this file:
 KEY_1_FPR=A845A5BD622556E89D7763B5EB06D1696BEC4C90
-# KEY_2_FPR=???????????????????????????????????????? # TODO: future keys are listed here
+KEY_2_FPR=50DA59D5B9134FA2DB1EB20CFB829AB5D0FE017F
+# KEY_3_FPR=???????????????????????????????????????? # TODO: future keys are listed here
 DEFAULT_FPR="${KEY_1_FPR:?}" # TODO: the latest key shall become the default
 
 # Populate array with all tags from remote
@@ -20,9 +21,12 @@ expected-signature-for-version() {
 		0.9.*|0.1{0..5}.{0..2})
 			echo "${KEY_1_FPR}"
 			;;
+		0.1{6..7}.*)
+			echo "${KEY_2_FPR}"
+			;;
 		# TODO: Insert future expectations here
 		# 1.*.*)
-		# 	echo "${KEY_2_FPR}"
+		# 	echo "${KEY_3_FPR}"
 		# 	;;
 		*)
 			echo "${DEFAULT_FPR}"
