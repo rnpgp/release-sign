@@ -406,8 +406,8 @@ check-targz() {
 	fi
 	tar xf "${TARGZ}"
 	infop "Checking unpacked tarball against sources in %s\n" "$(realpath "${SRCDIR}")"
-	diff -qr --exclude=".git" "${SRCDIR}" "${TARGZ_NO_EXT}"
-	rm -rf "${TARGZ_NO_EXT}"
+	diff -qr --exclude=".git" "${SRCDIR}" "${EXPANDED_TARGZ}"
+	rm -rf "${EXPANDED_TARGZ}"
 	info "✅ tarball intact"
 	popd > /dev/null
 }
@@ -420,8 +420,8 @@ check-zip() {
 	fi
 	unzip -qq "${ZIP}"
 	infop "Checking unpacked zip archive against sources in %s\n" "$(realpath "${SRCDIR}")"
-	diff -qr --exclude=".git" "${SRCDIR}" "${ZIP_NO_EXT}"
-	rm -rf "${ZIP_NO_EXT}"
+	diff -qr --exclude=".git" "${SRCDIR}" "${EXPANDED_ZIP}"
+	rm -rf "${EXPANDED_ZIP}"
 	info "✅ zip archive intact"
 	popd > /dev/null
 }
@@ -432,6 +432,15 @@ sign() {
 		# Same for RNP and GnuPG
 		PPARAMS=("-u" "${KEY}" "${PPARAMS[@]+${PPARAMS[@]}}")
 	fi
+
+	for file in "${TARGZ}" "${ZIP}"
+	do
+		if [[ ! -r "${TEMPDIR}/${file##*/}" ]]
+		then
+			cp "${file}" "${TEMPDIR}/"
+		fi
+	done
+	pushd "${TEMPDIR}" > /dev/null
 
 	if [[ -z "${USEGPG}" ]]; then
 		# Using rnp - default
@@ -451,6 +460,12 @@ sign() {
 	info sha256sum "${ZIP_BASEPATH}" "${TARGZ_BASEPATH}" ">" "${SHA_SUM_FILE}"
 	infop "🧮 Checksumming %s and %s" "${ZIP_BASEPATH}" "${TARGZ_BASEPATH}"
 	sha256sum "${ZIP_BASEPATH}" "${TARGZ_BASEPATH}" > "${SHA_SUM_FILE}"
+	popd > /dev/null
+
+	for file in "${TEMPDIR}"/{"${SHA_SUM_FILE##*/}","${TARGZ##*/}.asc","${ZIP##*/}.asc"}
+	do
+		mv "${file}" .
+	done
 
 	infop "✅ Checksums are stored in files %s and %s.\n" "${TARGZ}.asc" "${ZIP}.asc";
 }
@@ -475,7 +490,7 @@ verify-remote() {
 
 verify() {
 	# Validate hashes first
-	for file in "${SHA_SUM_FILE}" "${TARGZ}" "${ZIP}"
+	for file in "${SHA_SUM_FILE}" {"${TARGZ}","${ZIP}"}{,.asc}
 	do
 		if [[ ! -r "${TEMPDIR}/${file##*/}" ]]
 		then
@@ -484,7 +499,6 @@ verify() {
 	done
 	pushd "${TEMPDIR}" > /dev/null
 	ecdo sha256sum ${QUIET:+--quiet} -c "${SHA_SUM_FILE}"
-	popd > /dev/null
 	# Verify signatures
 	if [[ -z "${USEGPG}" ]]; then
 		for file in "${TARGZ}" "${ZIP}"; do
@@ -500,6 +514,7 @@ verify() {
 			ecdo gpg --verify "${file##*/}.asc" "${file}"
 		done
 	fi
+	popd > /dev/null
 	info "✅ Signatures are verified"
 }
 
@@ -529,6 +544,20 @@ main() {
 	ZIP_NO_EXT="${ZIP_NO_EXT:-${ZIP##*/}}"
 	ZIP_NO_EXT="${ZIP_NO_EXT%.*}"
 	export ZIP_NO_EXT
+
+	export DEFAULT_EXPANDED_PATH="${REPOLAST}-${VERSION}"
+
+	if [[ -z "${LOCAL_ZIP:-}" ]]; then
+		export EXPANDED_ZIP="${DEFAULT_EXPANDED_PATH}"
+	else
+		export EXPANDED_ZIP="${ZIP_NO_EXT}"
+	fi
+
+	if [[ -z "${LOCAL_TARGZ:-}" ]]; then
+		export EXPANDED_TARGZ="${DEFAULT_EXPANDED_PATH}"
+	else
+		export EXPANDED_TARGZ="${TARGZ_NO_EXT}"
+	fi
 
 	export SHA_SUM_FILE="${SHA_SUM_FILE:-${ZIP_BASEPATH%.*}.sha256}"
 	export REMOTE_SHA_SUM_FILE="${REMOTE_SHA_SUM_FILE:-${SHA_SUM_FILE}}"
