@@ -24,9 +24,10 @@ teardown() {
 test_package_signature() {
 	local version="${1}"; shift
 	local fpr="${1:?Missing fingerprint}"
+	local archive_name="${2}"
 	run_test \
 		"Expected signature for version \e[1m${version}\e[22m is signed by '\e[1m${fpr}\e[22m'" \
-		signature_fingerprint_is "${fpr}" "${version}"
+		signature_fingerprint_is "${fpr}" "${version}" "${archive_name}"
 }
 
 warn() {
@@ -36,11 +37,21 @@ warn() {
 signature_fingerprint_is() {
 	local fpr="${1:?Missing fingerprint}"; shift
 	local version="${1:?Missing version}"
+	local archive_name="${2}"
 
+	warn will run: ./rel-sign.sh -V \
+				-r rnpgp/rnp \
+				-v "${version}" \
+				${archive_name:+-t "${archive_name}.tar.gz"} \
+				${archive_name:+-z "${archive_name}.zip"} \
+				--gpg \
+				verify-remote
 	assert_eq "${fpr}" \
 		"$(./rel-sign.sh -V \
 				-r rnpgp/rnp \
 				-v "${version}" \
+				${archive_name:+-t "${archive_name}.tar.gz"} \
+				${archive_name:+-z "${archive_name}.zip"} \
 				--gpg \
 				verify-remote \
 				2>&1 >/dev/null | command sed '/using.*key/!d; s/^.* //' | \
