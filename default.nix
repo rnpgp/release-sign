@@ -9,19 +9,24 @@
 , unzip
 , bash
 , gnupg
+, gnused
 , rnp
 , makeWrapper
 }:
+let
+  version = lib.fileContents ./VERSION;
+in
 stdenvNoCC.mkDerivation {
   pname = "rel-sign";
-  version = "0.1.1";
+  inherit version;
   src = ./.;
   buildInputs = [ bash gnupg rnp curl diffutils git unzip ];
   nativeBuildInputs = [ makeWrapper ];
   installPhase = ''
-    mkdir -p $out/bin
-    cp ./rel-sign.sh $out/bin/rel-sign
-    wrapProgram $out/bin/rel-sign \
+    mkdir -p "$out/bin"
+    cp ./rel-sign.sh "$out/bin/rel-sign"
+    "${gnused}/bin/sed" -i -e 's@__VERSION=.*$@__VERSION="${version}"@' "$out/bin/rel-sign"
+    wrapProgram "$out/bin/rel-sign" \
       --prefix PATH : ${lib.makeBinPath [ bash gnupg rnp curl diffutils git unzip ]}
   '';
 }
