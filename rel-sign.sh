@@ -26,7 +26,11 @@
 set -eu
 
 declare __PROGNAME="${0##*/}"
-declare __VERSION="0.1.1"
+
+declare __BIN="$(command realpath "${BASH_SOURCE[0]}")"
+declare __ROOTDIR="$(command cd "${__BIN%/*}" > /dev/null && pwd -P)"
+declare __VERSION_FILE="${__ROOTDIR}/VERSION"
+declare __VERSION="$( [[ -r "${__VERSION_FILE}" ]] && cat "${__VERSION_FILE}" || echo " git-dev" )"
 
 info() {
 	if [[ -n "${VERBOSE}" || -n "${DEBUG}" ]]; then
