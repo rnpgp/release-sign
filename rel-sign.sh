@@ -195,14 +195,6 @@ parse-opts() {
 					((OPTIND++))
 					ZIP="${1}"
 				fi
-
-				ZIP=$(realpath "${ZIP}")
-
-				if [[ ! -f "${ZIP}" ]]; then
-					warnp "File %s doesn't exist.\n" "${ZIP}"
-					exit 1
-				fi
-				export LOCAL_ZIP=1
 				;;
 			--targz|-t*)
 				if [[ "$1" == *=* ]]; then
@@ -212,14 +204,6 @@ parse-opts() {
 					((OPTIND++))
 					TARGZ="${1}"
 				fi
-
-				TARGZ=$(realpath "${TARGZ}")
-
-				if [[ ! -f "${TARGZ}" ]]; then
-					warnp "File %s doesn't exist.\n" "${TARGZ}"
-					exit 1
-				fi
-				export LOCAL_TARGZ=1
 				;;
 			--src*|-s*)
 				if [[ "$1" == *=* ]]; then
@@ -229,15 +213,6 @@ parse-opts() {
 					((OPTIND++))
 					SRCDIR="${1}"
 				fi
-
-				SRCDIR=$(realpath "${SRCDIR}")
-
-				if [[ ! -d "${SRCDIR}" ]]; then
-					warnp "Directory %s doesn't exist.\n" "${SRCDIR}"
-					exit 1
-				fi
-
-				warnp "Comparing with sources from %s\n" "${SRCDIR}"
 				;;
 			--debug|-d)
 				set -x
@@ -277,6 +252,7 @@ parse-opts() {
 # Check whether all parameters are specified.
 validate-parameters() {
 	local need_exit=
+
 	if [[ -z "${REPO}" ]]; then
 		warnp "Please specify repository via -r or --repo argument.\n"
 		need_exit=1
@@ -289,6 +265,40 @@ validate-parameters() {
 
 	if [[ -z "${KEY}" ]] && [[ "$COMMAND" != verify* ]]; then
 		warnp "Signing key was not specified - so default one will be used.\n"
+	fi
+
+	if [[ "${COMMAND:-}" != verify-remote ]]; then
+		if [[ -n "${ZIP:-}" ]]; then
+			ZIP=$(realpath "${ZIP}")
+
+			if [[ ! -f "${ZIP}" ]]; then
+				warnp "File %s doesn't exist.\n" "${ZIP}"
+				need_exit=1
+			fi
+			export LOCAL_ZIP=1
+		fi
+
+		if [[ -n "${TARGZ:-}" ]]; then
+			TARGZ=$(realpath "${TARGZ}")
+
+			if [[ ! -f "${TARGZ}" ]]; then
+				warnp "File %s doesn't exist.\n" "${TARGZ}"
+				need_exit=1
+			fi
+			export LOCAL_TARGZ=1
+		fi
+	fi
+
+
+	if [[ -n "${SRCDIR:-}" ]]; then
+		SRCDIR=$(realpath "${SRCDIR}")
+
+		if [[ ! -d "${SRCDIR}" ]]; then
+			warnp "Directory %s doesn't exist.\n" "${SRCDIR}"
+			need_exit=1
+		fi
+
+		warnp "Comparing with sources from %s\n" "${SRCDIR}"
 	fi
 
 	if [[ -n "$need_exit" ]]; then
@@ -405,7 +415,7 @@ check-targz() {
 		download-targz
 	fi
 	tar xf "${TARGZ}"
-	infop "Checking unpacked tarball against sources in %s\n" "$(realpath "${SRCDIR}")"
+	infop "Checking unpacked tarball against sources in %s\n" "${SRCDIR}"
 	diff -qr --exclude=".git" "${SRCDIR}" "${EXPANDED_TARGZ}"
 	rm -rf "${EXPANDED_TARGZ}"
 	info "✅ tarball intact"
@@ -419,7 +429,7 @@ check-zip() {
 		download-zip
 	fi
 	unzip -qq "${ZIP}"
-	infop "Checking unpacked zip archive against sources in %s\n" "$(realpath "${SRCDIR}")"
+	infop "Checking unpacked zip archive against sources in %s\n" "${SRCDIR}"
 	diff -qr --exclude=".git" "${SRCDIR}" "${EXPANDED_ZIP}"
 	rm -rf "${EXPANDED_ZIP}"
 	info "✅ zip archive intact"
