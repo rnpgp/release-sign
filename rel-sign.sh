@@ -411,6 +411,30 @@ download-zip() {
 	done
 }
 
+# A list of globs to exclude when diffing between source archives and git
+# source tree.
+declare DIFF_EXCLUDES=(
+	.git
+	.github
+)
+
+# Diff between SRCDIR and expanded archives
+diff-exclude-globs() {
+	for pattern in "$@"
+	do
+		exclude_globs+=("-x ${pattern}")
+	done
+}
+
+diff-it() {
+	local srcdir="${1:?Missing srcdir}"
+	local expanded="${2:?Missing path of expanded archive}"
+	local exclude_globs=()
+	diff-exclude-globs "${DIFF_EXCLUDES[@]}"
+
+	ecdo diff -qr ${exclude_globs:+${exclude_globs[@]}} "${srcdir}" "${expanded}"
+}
+
 
 # Check .tar.gz
 check-targz() {
@@ -420,7 +444,7 @@ check-targz() {
 	fi
 	tar xf "${TARGZ}"
 	infop "Checking unpacked tarball against sources in %s\n" "${SRCDIR}"
-	diff -qr --exclude=".git" "${SRCDIR}" "${EXPANDED_TARGZ}"
+	diff-it "${SRCDIR}" "${EXPANDED_TARGZ}"
 	rm -rf "${EXPANDED_TARGZ}"
 	info "✅ tarball intact"
 	popd > /dev/null
@@ -434,7 +458,7 @@ check-zip() {
 	fi
 	unzip -qq "${ZIP}"
 	infop "Checking unpacked zip archive against sources in %s\n" "${SRCDIR}"
-	diff -qr --exclude=".git" "${SRCDIR}" "${EXPANDED_ZIP}"
+	diff-it "${SRCDIR}" "${EXPANDED_ZIP}"
 	rm -rf "${EXPANDED_ZIP}"
 	info "✅ zip archive intact"
 	popd > /dev/null
