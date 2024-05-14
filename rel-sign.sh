@@ -130,7 +130,8 @@ print_help() {
 
 \e[1;4mCommands\e[m
     version         - display current version of ${__PROGNAME}
-    verify-remote   - given \`--repo\` and \`--version\`, verify its
+    verify-remote   - given \`--repo\`, \`--version\`, and
+                      \`--zip\` and/or \`--targz\`, verify the
                       signatures + checksum hosted on the remote
                       GitHub release page
 "
@@ -557,7 +558,15 @@ verify-remote() {
 	local asc_url sha_url
 
 	pushd "${TEMPDIR}" > /dev/null
-	for file in "${TARGZ_BASEPATH}" "${ZIP_BASEPATH}"; do
+
+	local files=()
+	for path in "${TARGZ_BASEPATH}" "${ZIP_BASEPATH}"; do
+		if [[ -n "${path}" ]]; then
+			files+=("${path}")
+		fi
+	done
+
+	for file in "${files[@]}"; do
 		asc_url="https://github.com/${REPO}/releases/download/v${VERSION}/${file##*/}.asc"
 		download-file "$asc_url"
 	done
@@ -565,9 +574,12 @@ verify-remote() {
 	sha_url="https://github.com/${REPO}/releases/download/v${VERSION}/${REMOTE_SHA_SUM_FILE}"
 
 	download-file "$sha_url"
-	download-targz
-	download-zip
-	verify "${REMOTE_SHA_SUM_FILE}" "${TARGZ_BASEPATH}" "${ZIP_BASEPATH}"
+
+	for file in "${files[@]}"; do
+		download-github-archives "${file}"
+	done
+
+	verify "${REMOTE_SHA_SUM_FILE}" "${files[@]}"
 	popd > /dev/null
 
 }
