@@ -36,27 +36,53 @@ warn() {
 
 signature_fingerprint_is() {
 	local fpr="${1:?Missing fingerprint}"; shift
-	local version="${1:?Missing version}"
-	local archive_name="${2}"
+	local version="${1:?Missing version}"; shift
+	local archive_name="${1}"; shift
+	local zip_tar="${1}"
 
-	warn will run: ./rel-sign.sh -V \
-				-r rnpgp/rnp \
-				-v "${version}" \
-				${archive_name:+-t "${archive_name}.tar.gz"} \
-				${archive_name:+-z "${archive_name}.zip"} \
-				--gpg \
-				verify-remote
+	local has_zip
+	local has_tar
+
+	if [[ -n "${zip_tar}" ]]; then
+		if [[ "${zip_tar}" = *z* ]]; then
+			has_zip=1
+		fi
+
+		if [[ "${zip_tar}" = *t* ]]; then
+			has_tar=1
+		fi
+	fi
+
+	local cmd=(
+		./rel-sign.sh
+		-V
+		-r rnpgp/rnp
+		-v "${version}"
+		--gpg
+		--explicit-archive
+		verify-remote
+		)
+
+	if [[ -n "${has_zip}" ]]; then
+		cmd+=(-z "${archive_name}.zip")
+	fi
+
+	if [[ -n "${has_tar}" ]]; then
+		cmd+=(-t "${archive_name}.tar.gz")
+	fi
+
+	warn will run: "${cmd[@]}"
 	assert_eq "${fpr}" \
-		"$(./rel-sign.sh -V \
-				-r rnpgp/rnp \
-				-v "${version}" \
-				${archive_name:+-t "${archive_name}.tar.gz"} \
-				${archive_name:+-z "${archive_name}.zip"} \
-				--gpg \
-				verify-remote \
-				2>&1 >/dev/null | command sed '/using.*key/!d; s/^.* //' | \
-				command uniq | \
-				command grep "${fpr}")"
+		"$(check_gpg_fpr_eq "${fpr}" "${cmd[@]}")"
+}
+
+check_gpg_fpr_eq() {
+	local fpr="${1}"; shift
+
+	"$@" 2>&1 >/dev/null | \
+		command sed '/using.*key/!d; s/^.* //' | \
+		command uniq | \
+		command grep "${fpr}"
 }
 
 assert_eq() {

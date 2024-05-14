@@ -137,6 +137,7 @@ print_help() {
 	echo
 }
 
+declare EXPLICIT_ARCHIVE_SPECIFIED=
 declare USEGPG=
 declare REPO=
 declare REPOLAST=
@@ -192,6 +193,8 @@ parse-opts() {
 				USEGPG=1
 				;;
 			--zip|-z*)
+				EXPLICIT_ARCHIVE_SPECIFIED=1
+
 				if [[ "$1" == *=* ]]; then
 					ZIP="${1#*=}"
 				else
@@ -201,6 +204,8 @@ parse-opts() {
 				fi
 				;;
 			--targz|-t*)
+				EXPLICIT_ARCHIVE_SPECIFIED=1
+
 				if [[ "$1" == *=* ]]; then
 					TARGZ="${1#*=}"
 				else
@@ -265,6 +270,9 @@ validate-parameters() {
 	if [[ -z "${VERSION}" ]]; then
 		warnp "Please specify release version via -v or --version argument.\n"
 		need_exit=1
+	else
+		export NO_EXT_FILENAME="${NO_EXT_FILENAME:-v${VERSION}}"
+		export REMOTE_NO_EXT_FILENAME="${REMOTE_NO_EXT_FILENAME:-${NO_EXT_FILENAME}}"
 	fi
 
 	if [[ -z "${KEY}" ]] && [[ "$COMMAND" != verify* ]]; then
@@ -375,40 +383,49 @@ download-file() {
 	curl --fail -sSL "${url}" -o "${outfile}"
 }
 
-download-targz() {
+download-urls() {
+	local outfile="${1:?Missing outfile}"; shift
+	local failed_to_download_anything=1
+
+	for url in "$@"; do
+		if download-file "${url}" "${outfile}"
+		then
+			failed_to_download_anything=
+			break
+		fi
+	done
+
+	if [[ -n "${failed_to_download_anything}" ]]
+	then
+		warnp "Failed to download any of the following URLs: %s\n" "$*"
+	fi
+}
+
+download-github-archives() {
+	local archive_basepath="${1:?Missing archive basepath}"
+
 	# Try downloading from release page first.
 	# Failing that, download from tag page, which allows the download of
 	# draft releases.
 	local urls=(
-		"https://github.com/${REPO}/releases/download/v${VERSION}/${TARGZ_BASEPATH}"
-		"https://github.com/${REPO}/archive/refs/tags/${TARGZ_BASEPATH}"
-	)
-	local outfile="${TARGZ_BASEPATH}"
-	for url in "${urls[@]}"; do
-		if download-file "${url}" "${outfile}"
-		then
-			break
-		fi
-	done
-}
-
-download-zip() {
-	local urls=(
-		"https://github.com/${REPO}/releases/download/v${VERSION}/${ZIP_BASEPATH}"
-		"https://github.com/${REPO}/archive/refs/tags/${ZIP_BASEPATH}"
+		"https://github.com/${REPO}/releases/download/v${VERSION}/${archive_basepath}"
+		"https://github.com/${REPO}/archive/refs/tags/${archive_basepath}"
 	)
 	# TODO: Support downloading draft release archives.
 	# NOTE: The following 'api' url gives archive with a differently-named
 	# top level directory (e.g., rnpgp-rnp-87fdd0a), thus cannot be used in
 	# our signature and sum tests.
 	# local url="https://api.github.com/repos/${REPO}/zipball/refs/tags/v${VERSION}"
-	local outfile="${ZIP_BASEPATH}"
-	for url in "${urls[@]}"; do
-		if download-file "${url}" "${outfile}"
-		then
-			break
-		fi
-	done
+	local outfile="${archive_basepath}"
+	download-urls "${outfile}" "${urls[@]}"
+}
+
+download-targz() {
+	download-github-archives "${TARGZ_BASEPATH}"
+}
+
+download-zip() {
+	download-github-archives "${ZIP_BASEPATH}"
 }
 
 # A list of globs to exclude when diffing between source archives and git
@@ -465,13 +482,13 @@ check-zip() {
 }
 
 sign() {
-	info "✍️ Signing tarball and zip"
+	info "✍️ Signing: ${*}"
 	if [[ -n "${KEY}" ]]; then
 		# Same for RNP and GnuPG
 		PPARAMS=("-u" "${KEY}" "${PPARAMS[@]+${PPARAMS[@]}}")
 	fi
 
-	for file in "${TARGZ}" "${ZIP}"
+	for file in "$@"
 	do
 		if [[ ! -r "${TEMPDIR}/${file##*/}" ]]
 		then
@@ -482,64 +499,78 @@ sign() {
 
 	if [[ -z "${USEGPG}" ]]; then
 		# Using rnp - default
-		for file in "${TARGZ}" "${ZIP}"; do
+		for file in "$@"; do
 			info "✍️ Signing ${file} with RNP"
 			ecdo rnp --sign --detach --armor "${PPARAMS[@]+${PPARAMS[@]}}" "${file}" --output "${file##*/}.asc"
 		done
 	else
 		# Using gpg
-		for file in "${TARGZ}" "${ZIP}"; do
+		for file in "$@"; do
 			info "✍️ Signing ${file} with GPG"
 			ecdo gpg --armor "${PPARAMS[@]+${PPARAMS[@]}}" --output "${file##*/}.asc" --detach-sign "${file}"
 		done
 	fi
 
 	# Calculate hashes as well
-	info sha256sum "${ZIP_BASEPATH}" "${TARGZ_BASEPATH}" ">" "${SHA_SUM_FILE}"
-	infop "🧮 Checksumming %s and %s" "${ZIP_BASEPATH}" "${TARGZ_BASEPATH}"
-	sha256sum "${ZIP_BASEPATH}" "${TARGZ_BASEPATH}" > "${SHA_SUM_FILE}"
+	base_paths=()
+	for file in "$@"; do
+		base_paths+=("${file##*/}")
+	done
+
+	info sha256sum "${base_paths[@]}" ">" "${SHA_SUM_FILE}"
+	infop "🧮 Checksumming %s\n" "${base_paths[@]}"
+	sha256sum "${base_paths[@]}" > "${SHA_SUM_FILE}"
 	popd > /dev/null
 
-	for file in "${TEMPDIR}"/{"${SHA_SUM_FILE##*/}","${TARGZ##*/}.asc","${ZIP##*/}.asc"}
+	artifact_paths=("${SHA_SUM_FILE##*/}" "${base_paths[@]/%/.asc}")
+	artifact_paths=("${artifact_paths[@]/#/${TEMPDIR}/}")
+	infop "📦 Artifact: %s\n" "${artifact_paths[@]}"
+
+	for file in "${artifact_paths[@]}"
 	do
 		mv "${file}" .
 	done
 
-	infop "✅ Checksums are stored in files %s and %s.\n" "${TARGZ}.asc" "${ZIP}.asc";
+	infop "✅ Checksums are stored in files %s.\n" "${@/%/.asc}"
 }
 
 verify-remote() {
 	local asc_url sha_url
+
+	pushd "${TEMPDIR}" > /dev/null
 	for file in "${TARGZ_BASEPATH}" "${ZIP_BASEPATH}"; do
 		asc_url="https://github.com/${REPO}/releases/download/v${VERSION}/${file##*/}.asc"
 		download-file "$asc_url"
 	done
 
 	sha_url="https://github.com/${REPO}/releases/download/v${VERSION}/${REMOTE_SHA_SUM_FILE}"
-	download-file "$sha_url"
 
-	pushd "${TEMPDIR}" > /dev/null
+	download-file "$sha_url"
 	download-targz
 	download-zip
+	verify "${REMOTE_SHA_SUM_FILE}" "${TARGZ_BASEPATH}" "${ZIP_BASEPATH}"
 	popd > /dev/null
 
-	verify
 }
 
 verify() {
+	local sha_sum_file="$1"; shift
+
 	# Validate hashes first
-	for file in "${SHA_SUM_FILE}" {"${TARGZ}","${ZIP}"}{,.asc}
+	for file in "${sha_sum_file}" "$@" "${@/%/.asc}"
 	do
 		if [[ ! -r "${TEMPDIR}/${file##*/}" ]]
 		then
 			cp "${file}" "${TEMPDIR}/"
 		fi
 	done
+
 	pushd "${TEMPDIR}" > /dev/null
-	ecdo sha256sum ${QUIET:+--quiet} -c "${SHA_SUM_FILE}"
+	ecdo sha256sum ${QUIET:+--quiet} -c "${sha_sum_file}"
+
 	# Verify signatures
-	if [[ -z "${USEGPG}" ]]; then
-		for file in "${TARGZ}" "${ZIP}"; do
+	if [[ -z "${USEGPG:-}" ]]; then
+		for file in "$@"; do
 			# Work around RNP's option
 			if [[ ! -r "${file##*/}" ]]; then
 				cp "${file}" .
@@ -548,7 +579,7 @@ verify() {
 			rm "${file##*/}"
 		done
 	else
-		for file in "${TARGZ}" "${ZIP}"; do
+		for file in "$@"; do
 			ecdo gpg --verify "${file##*/}.asc" "${file}"
 		done
 	fi
@@ -566,15 +597,16 @@ main() {
 	tmpdir=$(_mktemp)
 	export TEMPDIR="${tmpdir}"
 
-	export NO_EXT_FILENAME="${NO_EXT_FILENAME:-v${VERSION}}"
-	export REMOTE_NO_EXT_FILENAME="${REMOTE_NO_EXT_FILENAME:-${NO_EXT_FILENAME}}"
+	# If local targz/zip, must use explicit parameters
+	if [[ -z "${EXPLICIT_ARCHIVE_SPECIFIED:-}" ]]; then
+		export TARGZ="${TARGZ:-${NO_EXT_FILENAME}.tar.gz}"
+		export ZIP="${ZIP:-${NO_EXT_FILENAME}.zip}"
+	fi
 
-	export TARGZ="${TARGZ:-${NO_EXT_FILENAME}.tar.gz}"
 	export TARGZ_BASEPATH="${TARGZ##*/}"
-	export ZIP="${ZIP:-${NO_EXT_FILENAME}.zip}"
 	export ZIP_BASEPATH="${ZIP##*/}"
 
-	TARGZ_NO_EXT="${TARGZ_NO_EXT:-${TARGZ##*/}}"
+	TARGZ_NO_EXT="${TARGZ_NO_EXT:-${TARGZ_BASEPATH}}"
 	TARGZ_NO_EXT="${TARGZ_NO_EXT%.tar.gz}"
 	TARGZ_NO_EXT="${TARGZ_NO_EXT%.tgz}"
 	export TARGZ_NO_EXT
@@ -585,31 +617,50 @@ main() {
 
 	export DEFAULT_EXPANDED_PATH="${REPOLAST}-${VERSION}"
 
+	# Choose a name for the expanded targz file
 	if [[ -z "${LOCAL_ZIP:-}" ]]; then
 		export EXPANDED_ZIP="${DEFAULT_EXPANDED_PATH}"
 	else
 		export EXPANDED_ZIP="${ZIP_NO_EXT}"
 	fi
 
+	# Choose a name for the expanded targz file
 	if [[ -z "${LOCAL_TARGZ:-}" ]]; then
 		export EXPANDED_TARGZ="${DEFAULT_EXPANDED_PATH}"
 	else
 		export EXPANDED_TARGZ="${TARGZ_NO_EXT}"
 	fi
 
-	export SHA_SUM_FILE="${SHA_SUM_FILE:-${ZIP_BASEPATH%.*}.sha256}"
+	# Choose a name for the checksum file
+	if [[ -n "${ZIP_BASEPATH:-}" ]]; then
+		export SHA_SUM_FILE="${SHA_SUM_FILE:-${ZIP_BASEPATH%.*}.sha256}"
+	else
+		export SHA_SUM_FILE="${SHA_SUM_FILE:-${TARGZ_BASEPATH%.tar.gz}.sha256}"
+	fi
+
 	export REMOTE_SHA_SUM_FILE="${REMOTE_SHA_SUM_FILE:-${SHA_SUM_FILE}}"
 
 	if [[ -n "$COMMAND" ]]; then
 		"$COMMAND"
 	else
-		warnp "Using zip file from %s\n" "${ZIP}"
-		warnp "Using tar.gz file from %s\n" "${TARGZ}"
 		fetch-repo
-		check-targz
-		check-zip
-		sign
-		verify
+
+		FILES_TO_CHECK=()
+
+		if [[ -n "${TARGZ:-}" ]]; then
+			warnp "Using tar.gz file from %s\n" "${TARGZ}"
+			FILES_TO_CHECK+=("${TARGZ}")
+			check-targz
+		fi
+
+		if [[ -n "${ZIP:-}" ]]; then
+			warnp "Using zip file from %s\n" "${ZIP}"
+			FILES_TO_CHECK+=("${ZIP}")
+			check-zip
+		fi
+
+		sign "${FILES_TO_CHECK[@]}"
+		verify "${SHA_SUM_FILE}" "${FILES_TO_CHECK[@]}"
 	fi
 }
 
