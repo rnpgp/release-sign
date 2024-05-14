@@ -431,8 +431,27 @@ download-zip() {
 # A list of globs to exclude when diffing between source archives and git
 # source tree.
 declare DIFF_EXCLUDES=(
+	.cirrus.yml
+	.clang-format
+	.codespellrc
+	.config.yml
+	.editorconfig
 	.git
+	.gitattributes
 	.github
+	.gitignore
+	.gitmodules
+	_config.yml
+	ci
+	ci-legacy
+	codecov.yml
+	git-hooks
+	src/libsexpp/.clangformat
+	src/libsexpp/.git
+	src/libsexpp/.gitattributes
+	src/libsexpp/.github
+	src/libsexpp/.gitignore
+	src/libsexpp/codecov.yml
 )
 
 # Diff between SRCDIR and expanded archives
