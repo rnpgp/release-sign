@@ -1,5 +1,6 @@
 # Nix
 result
+.direnv
 
 
 # Created by https://www.toptal.com/developers/gitignore/api/vim,linux,emacs,macos,textmate,sublimetext,visualstudiocode,windows
