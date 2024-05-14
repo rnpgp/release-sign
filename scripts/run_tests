@@ -22,12 +22,14 @@ teardown() {
 }
 
 test_package_signature() {
+	export ERROR_LOG_FILE="error-$(echo "$*" | sha1sum | cut -d ' ' -f 1).log"
 	local version="${1}"; shift
 	local fpr="${1:?Missing fingerprint}"
 	local archive_name="${2}"
 	local zip_tar="${3}"
 	run_test \
-		"Expected signature for version \e[1m${version}\e[22m is signed by '\e[1m${fpr}\e[22m'" \
+		"${ERROR_LOG_FILE}" \
+		"Expected signature for version \e[1m${version}\e[22m to be signed by '\e[1m${fpr}\e[22m'" \
 		signature_fingerprint_is "${fpr}" "${version}" "${archive_name}" "${zip_tar}"
 }
 
@@ -81,7 +83,7 @@ check_gpg_fpr_eq() {
 
 	# Grep using C locale to standardize output
 	export LANG=C
-	"$@" 2>&1 >/dev/null | \
+	"$@" 2> >(tee -a "${ERROR_LOG_FILE}") | \
 		command sed '/using.*key/!d; s/^.* //' | \
 		command uniq | \
 		command grep "${fpr}"
@@ -103,7 +105,9 @@ assert_eq() {
 
 
 run_test() {
-	local expectation_message="${1?}"
+	local error_log_file="${1?:Missing error log file}"
+	shift
+	local expectation_message="${1?:Missing expectation message}"
 	shift
 	local -a cmd=("$@")
 	set +e
@@ -121,14 +125,16 @@ run_test() {
 	local test_name="${test_raw_name#test_}"
 	test_name="${test_name//_/ }"
 
+	local serialized_result="${test_name}::: ${expectation_message}:: ${error_log_file}::::${cmd[*]}"
+
 	if [[ $rv = 0 ]]
 	then
 		((++pass_test_num)) || :
-		successes+=("${test_name}: ${expectation_message}:::${cmd[*]}")
+		successes+=("${serialized_result}")
 		printf '\e[32m.\e[m'
 	else
 		((++fail_test_num)) || :
-		failures+=("${test_name}: ${expectation_message}:::${cmd[*]}")
+		failures+=("${serialized_result}")
 		printf '\e[31mF\e[m'
 	fi
 	return $rv
@@ -147,11 +153,21 @@ print_summary() {
 	for passed_test in "${successes[@]}"
 	do
 		((success_idx++)) || :
-		local test_name__expectation_message="${passed_test%:::*}"
-		local test_cmd="${passed_test#*:::}"
-		local test_name="${test_name__expectation_message%: *}"
-		local expectation_message="${test_name__expectation_message#*: }"
+		local test_name___expectation_message__output="${passed_test%::::*}"
+		local test_cmd="${passed_test#*::::}"
+		local test_name="${test_name___expectation_message__output%::: *}"
+		local expectation_message__output="${test_name___expectation_message__output#*::: }"
+		local expectation_message="${expectation_message__output%:: *}"
+		local cmd_output="${expectation_message__output#*:: }"
 		printf "   \e[32;1m%b\e[22m passed\e[m\n" "${expectation_message}"
+		if [[ -r "${cmd_output}" ]]; then
+			printf "   \e[mOutput:\n"
+			while IFS= read -r line; do
+				printf "            \e[32m%s\e[m\n" "${line}"
+			done < "${cmd_output}"
+			rm "${cmd_output}"
+		fi
+		echo
 	done
 
 	if [[ "${#failures[@]}" -gt 0 ]]
@@ -162,14 +178,25 @@ print_summary() {
 	for failed_test in "${failures[@]}"
 	do
 		((failure_idx++)) || :
-		local test_name__expectation_message="${failed_test%:::*}"
-		local test_cmd="${failed_test#*:::}"
-		local test_name="${test_name__expectation_message%: *}"
-		local expectation_message="${test_name__expectation_message#*: }"
+		local test_name___expectation_message__output="${failed_test%::::*}"
+		local test_cmd="${failed_test#*::::}"
+		local test_name="${test_name___expectation_message__output%::: *}"
+		local expectation_message__output="${test_name___expectation_message__output#*::: }"
+		local expectation_message="${expectation_message__output%:: *}"
+		local cmd_output="${expectation_message__output#*:: }"
+
 		printf "\e[1mFailure #%d:\e[22m\n" "${failure_idx}"
 		printf "   \e[31;1m%b\e[22m failed\e[m\n\n" "${test_name}"
 		printf "   \e[34m%b\e[m\n" "${expectation_message}"
 		printf "   \e[mCommand: \e[31m%s\e[m\n" "${test_cmd}"
+
+		if [[ -r "${cmd_output}" ]]; then
+			printf "   \e[mOutput:\n"
+			while IFS= read -r line; do
+				printf "            \e[31m%s\e[m\n" "${line}"
+			done < "${cmd_output}"
+			rm "${cmd_output}"
+		fi
 		echo
 	done
 	printf 'Total: %s test(s), %s passed, %s failed\n' "${total_test_num}" "${pass_test_num}" "${fail_test_num}"

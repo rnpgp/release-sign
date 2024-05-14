@@ -74,6 +74,15 @@ ecdo() {
 	"$@"
 }
 
+ecdo2to1() {
+	for segment in "$@"; do
+		infop " ${segment}"
+	done
+	infop ' 2>&1'
+	info
+	"$@" 2>&1
+}
+
 cleanup() {
 	if [[ -n "${TEMPDIR:-}" && -d "${TEMPDIR}" ]]
 	then
@@ -606,12 +615,12 @@ verify() {
 			if [[ ! -r "${file##*/}" ]]; then
 				cp "${file}" .
 			fi
-			ecdo rnp --verify "${file##*/}.asc"
+			ecdo2to1 rnp --verify "${file##*/}.asc"
 			rm "${file##*/}"
 		done
 	else
 		for file in "$@"; do
-			ecdo gpg --verify "${file##*/}.asc" "${file}"
+			ecdo2to1 gpg --verify "${file##*/}.asc" "${file}"
 		done
 	fi
 	popd > /dev/null
