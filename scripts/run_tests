@@ -25,9 +25,10 @@ test_package_signature() {
 	local version="${1}"; shift
 	local fpr="${1:?Missing fingerprint}"
 	local archive_name="${2}"
+	local zip_tar="${3}"
 	run_test \
 		"Expected signature for version \e[1m${version}\e[22m is signed by '\e[1m${fpr}\e[22m'" \
-		signature_fingerprint_is "${fpr}" "${version}" "${archive_name}"
+		signature_fingerprint_is "${fpr}" "${version}" "${archive_name}" "${zip_tar}"
 }
 
 warn() {
@@ -59,7 +60,6 @@ signature_fingerprint_is() {
 		-r rnpgp/rnp
 		-v "${version}"
 		--gpg
-		--explicit-archive
 		verify-remote
 		)
 
@@ -79,6 +79,8 @@ signature_fingerprint_is() {
 check_gpg_fpr_eq() {
 	local fpr="${1}"; shift
 
+	# Grep using C locale to standardize output
+	export LANG=C
 	"$@" 2>&1 >/dev/null | \
 		command sed '/using.*key/!d; s/^.* //' | \
 		command uniq | \

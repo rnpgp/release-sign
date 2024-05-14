@@ -25,6 +25,9 @@ expected-archive-name-for-version() {
 		0.17.*)
 			echo "rnp-v${version}"
 			;;
+		*)
+			echo "v${version}"
+			;;
 	esac
 }
 
@@ -49,7 +52,28 @@ expected-signature-for-version() {
 	esac
 }
 
+expected-zip-and-or-tar-for-version() {
+	local version="${1:?Missing version}"
+	case "${version}" in
+		0.9.*|0.1[012345].[012]|0.16.[0123]|0.17.0)
+			echo "zt"
+			;;
+		0.17.1)
+			echo "t"
+			;;
+		*)
+			warn "Version (${version}) not matched.  Checking tarball only."
+			echo "t"
+
+			;;
+	esac
+}
+
 for version in "${all_tags[@]}"
 do
-	test_package_signature "${version}" "$(expected-signature-for-version "${version}")" "$(expected-archive-name-for-version "${version}")"
+	test_package_signature \
+		"${version}" \
+		"$(expected-signature-for-version "${version}")" \
+		"$(expected-archive-name-for-version "${version}")" \
+		"$(expected-zip-and-or-tar-for-version "${version}")"
 done
