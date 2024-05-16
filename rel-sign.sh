@@ -569,7 +569,7 @@ verify-remote() {
 	pushd "${TEMPDIR}" > /dev/null
 
 	local files=()
-	for path in "${TARGZ_BASEPATH}" "${ZIP_BASEPATH}"; do
+	for path in "${TARGZ_BASEPATH:-}" "${ZIP_BASEPATH:-}"; do
 		if [[ -n "${path}" ]]; then
 			files+=("${path}")
 		fi
@@ -643,32 +643,35 @@ main() {
 		export ZIP="${ZIP:-${NO_EXT_FILENAME}.zip}"
 	fi
 
-	export TARGZ_BASEPATH="${TARGZ##*/}"
-	export ZIP_BASEPATH="${ZIP##*/}"
+	if [[ -n "${TARGZ:-}" ]]; then
+		export TARGZ_BASEPATH="${TARGZ##*/}"
+		TARGZ_NO_EXT="${TARGZ_NO_EXT:-${TARGZ_BASEPATH:-}}"
+		TARGZ_NO_EXT="${TARGZ_NO_EXT%.tar.gz}"
+		TARGZ_NO_EXT="${TARGZ_NO_EXT%.tgz}"
+		export TARGZ_NO_EXT
+	fi
 
-	TARGZ_NO_EXT="${TARGZ_NO_EXT:-${TARGZ_BASEPATH}}"
-	TARGZ_NO_EXT="${TARGZ_NO_EXT%.tar.gz}"
-	TARGZ_NO_EXT="${TARGZ_NO_EXT%.tgz}"
-	export TARGZ_NO_EXT
-
-	ZIP_NO_EXT="${ZIP_NO_EXT:-${ZIP##*/}}"
-	ZIP_NO_EXT="${ZIP_NO_EXT%.*}"
-	export ZIP_NO_EXT
+	if [[ -n "${ZIP:-}" ]]; then
+		export ZIP_BASEPATH="${ZIP##*/}"
+		ZIP_NO_EXT="${ZIP_NO_EXT:-${ZIP##*/}}"
+		ZIP_NO_EXT="${ZIP_NO_EXT%.*}"
+		export ZIP_NO_EXT
+	fi
 
 	export DEFAULT_EXPANDED_PATH="${REPOLAST}-${VERSION}"
 
 	# Choose a name for the expanded targz file
-	if [[ -z "${LOCAL_ZIP:-}" ]]; then
-		export EXPANDED_ZIP="${DEFAULT_EXPANDED_PATH}"
-	else
+	if [[ -n "${LOCAL_ZIP:-}" ]]; then
 		export EXPANDED_ZIP="${ZIP_NO_EXT}"
+	else
+		export EXPANDED_ZIP="${DEFAULT_EXPANDED_PATH}"
 	fi
 
 	# Choose a name for the expanded targz file
-	if [[ -z "${LOCAL_TARGZ:-}" ]]; then
-		export EXPANDED_TARGZ="${DEFAULT_EXPANDED_PATH}"
-	else
+	if [[ -n "${LOCAL_TARGZ:-}" ]]; then
 		export EXPANDED_TARGZ="${TARGZ_NO_EXT}"
+	else
+		export EXPANDED_TARGZ="${DEFAULT_EXPANDED_PATH}"
 	fi
 
 	# Choose a name for the checksum file
