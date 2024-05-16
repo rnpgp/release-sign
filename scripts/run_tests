@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
 
-default_test_file="${test_file:-${1:-spec/tests.sh}}"
+declare __PROGNAME="${0##*/}"
+
+default_test_file="${test_file:-spec/tests.sh}"
 
 declare -a failures=()
 declare -a successes=()
 declare total_test_num=0
 declare pass_test_num=0
 declare fail_test_num=0
+declare DEBUG=
+declare PRINT_SUMMARY=1
 
 
 not() {
@@ -35,6 +39,12 @@ test_package_signature() {
 
 warn() {
 	>&2 echo "$@"
+}
+
+debug() {
+	if [[ -n "${DEBUG:-}" ]]; then
+		>&2 echo "[debug] $*"
+	fi
 }
 
 signature_fingerprint_is() {
@@ -73,7 +83,7 @@ signature_fingerprint_is() {
 		cmd+=(-t "${archive_name}.tar.gz")
 	fi
 
-	warn will run: "${cmd[@]}"
+	debug will run: "${cmd[@]}"
 	assert_eq "${fpr}" \
 		"$(check_gpg_fpr_eq "${fpr}" "${cmd[@]}")"
 }
@@ -141,6 +151,11 @@ run_test() {
 }
 
 print_summary() {
+	if [[ -z "${PRINT_SUMMARY:-}" ]]
+	then
+		return
+	fi
+
 	local success_idx=0
 	local failure_idx=0
 	echo
@@ -208,7 +223,49 @@ return_status() {
 	! (( fail_test_num ))
 }
 
+# Print help message
+print_help() {
+	printf "Run tests against rel-sign.
+\e[1;4mUsage\e[m
+    \e[3m${__PROGNAME}\e[m \e[4mOPTIONS...\e[m \e[4m[TEST_FILES,...]\e[m
+
+\e[1;4mOptions\e[m
+    -h, --help      - show this help message and abort
+    -d, --debug     - dump commands which are executed
+"
+	echo
+}
+
+# Extract parameters
+parse-opts() {
+	while [[ $# -gt 0 ]]; do
+		case "$1" in
+			--debug|-d)
+				DEBUG=1
+				QUIET=
+				;;
+			--help|-h)
+				PRINT_SUMMARY=
+				print_help
+				exit 0
+				;;
+			--*|-*)
+				PRINT_SUMMARY=
+				warnp "Invalid argument: %s\nUse --help or -h to get list of available arguments.\n" "$1"
+				exit 1
+				;;
+		esac
+		shift
+		((OPTIND++))
+	done
+}
+
+OPTIND=1
+
 main() {
+	parse-opts "$@"
+	shift $((OPTIND - 1))
+
 	setup
 	if [[ $# -gt 0 ]]
 	then

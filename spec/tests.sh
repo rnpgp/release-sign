@@ -16,7 +16,8 @@ do
 done < <(
 	git ls-remote --tags https://github.com/rnpgp/rnp | \
 	sed '/tags/!d; /{}$/d; s@^.*refs/tags/v@@' | \
-	sort --version-sort -r # Process latest tags first
+	# Process latest tags first
+	sort --version-sort -r
 )
 
 expected-archive-name-for-version() {
@@ -35,11 +36,11 @@ expected-signature-for-version() {
 	local version="${1:?Missing version}"
 	case "${version}" in
 		0.9.*|0.1[012345].[012]|0.16.0)
-			warn "Using ${KEY_1_FPR} for version ${version}."
+			debug "Using ${KEY_1_FPR} for version ${version}."
 			echo "${KEY_1_FPR}"
 			;;
 		0.1[67].*)
-			warn "Using ${KEY_2_FPR} for version ${version}."
+			debug "Using ${KEY_2_FPR} for version ${version}."
 			echo "${KEY_2_FPR}"
 			;;
 		# TODO: Insert future expectations here
