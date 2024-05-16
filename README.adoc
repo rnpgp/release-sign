@@ -1,5 +1,8 @@
 = release-sign: tools for signing and verifying GitHub releases
 
+image:https://github.com/rnpgp/release-sign/actions/workflows/check-sigs.yml/badge.svg["Check signatures", link="https://github.com/rnpgp/release-sign/actions/workflows/check-sigs.yml"]
+
+
 == Purpose
 
 Tools and instructions for signing GitHub releases using OpenPGP keys.
@@ -228,6 +231,23 @@ Signature(s) verified successfully
 
 A failed verification will show a "BAD Signature" message...
 
+This script also provides `verify-remote` which does the above for you.
+
+EXAMPLE:
+
+[source,sh]
+----
+# Import RNPGP's public key
+$ curl -sSL -o public-key.asc \
+    https://www.rnpgp.org/openpgp_keys/BEDBA05C1E6EE2DFB4BA72E1EC5D520AD90A7262-A845A5BD622556E89D7763B5EB06D1696BEC4C90.asc
+$ rnpkeys --import public-key.asc
+
+# Run verification
+$ ./rel-sign.sh --repo rnpgp/rnp -v 0.15.1 verify-remote
+
+# Or if using Nix:
+$ nix run github:rnpgp/release-sign -- --repo rnpgp/rnp --v 0.15.1 verify-remote
+----
 
 == License
 
