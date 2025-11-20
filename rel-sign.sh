@@ -32,6 +32,8 @@ declare __ROOTDIR="$(command cd "${__BIN%/*}" > /dev/null && pwd -P)"
 declare __VERSION_FILE="${__ROOTDIR}/VERSION"
 declare __VERSION="$( [[ -r "${__VERSION_FILE}" ]] && cat "${__VERSION_FILE}" || echo " git-dev" )"
 
+declare NO_CLEANUP=
+
 info() {
 	if [[ -n "${VERBOSE}" || -n "${DEBUG}" ]]; then
 		echo "$*"
@@ -84,6 +86,11 @@ ecdo2to1() {
 }
 
 cleanup() {
+	if [[ -n "${NO_CLEANUP}" ]]; then
+		debugp "Skipping cleanup"
+		return
+	fi
+
 	if [[ -n "${TEMPDIR:-}" && -d "${TEMPDIR}" ]]
 	then
 		debugp "Removing tmpdir '${TEMPDIR}'"
@@ -490,9 +497,16 @@ check-targz() {
 	fi
 	tar xf "${TARGZ}"
 	infop "Checking unpacked tarball against sources in %s\n" "${SRCDIR}"
-	diff-it "${SRCDIR}" "${EXPANDED_TARGZ}"
-	rm -rf "${EXPANDED_TARGZ}"
-	info "✅ tarball intact"
+	if diff-it "${SRCDIR}" "${EXPANDED_TARGZ}"
+	then
+		rm -rf "${EXPANDED_TARGZ}"
+		info "✅ tarball intact"
+	else
+		warnp "❌ tarball is not intact, please check the differences above.\n"
+		warnp "You can find the sources in the directory %s.\n" "${TEMPDIR}"
+		NO_CLEANUP=1
+		exit 1
+	fi
 	popd > /dev/null
 }
 
@@ -504,9 +518,16 @@ check-zip() {
 	fi
 	unzip -qq "${ZIP}"
 	infop "Checking unpacked zip archive against sources in %s\n" "${SRCDIR}"
-	diff-it "${SRCDIR}" "${EXPANDED_ZIP}"
-	rm -rf "${EXPANDED_ZIP}"
-	info "✅ zip archive intact"
+	if diff-it "${SRCDIR}" "${EXPANDED_ZIP}"
+	then
+		rm -rf "${EXPANDED_ZIP}"
+		info "✅ zip archive intact"
+	else
+		warnp "❌ zip archive is not intact, please check the differences above.\n"
+		warnp "You can find the sources in the directory %s.\n" "${TEMPDIR}"
+		NO_CLEANUP=1
+		exit 1
+	fi
 	popd > /dev/null
 }
 
